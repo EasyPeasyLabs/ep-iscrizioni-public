@@ -21,40 +21,33 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
+    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
       
-      {/* Header - Fixed */}
-      <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue z-50 shadow-sm flex-none">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-20 items-center">
-            <div className="flex items-center gap-3 group cursor-default">
-              {/* Small logo icon */}
-               <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform duration-300 border-2 border-brand-red ring-2 ring-brand-blue">
-                <span className="text-brand-blue font-heading font-bold text-xl">E</span>
-                <span className="text-brand-red font-heading font-bold text-xl">P</span>
-               </div>
-               <div className="flex flex-col">
-                <span className="text-2xl font-heading font-bold tracking-tight text-brand-blue leading-none">
-                  EasyPeasy
-                </span>
-                <span className="text-xs font-bold tracking-widest uppercase text-brand-red font-sans">Public Portal</span>
-               </div>
-            </div>
-            <div className="hidden md:block text-sm text-slate-400 font-medium font-sans">
-                Benvenuto
+      {/* Header + Left Column Container - Sticky on Mobile */}
+      <div className="md:static sticky top-0 z-50">
+        {/* Header - Fixed */}
+        <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue shadow-sm flex-none">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-20 items-center">
+              <div className="flex items-center gap-3 group cursor-default">
+                {/* Small logo icon */}
+                 <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform duration-300 border-2 border-brand-red ring-2 ring-brand-blue">
+                  <span className="text-brand-blue font-heading font-bold text-xl">E</span>
+                  <span className="text-brand-red font-heading font-bold text-xl">P</span>
+                 </div>
+                 <div className="flex flex-col">
+                  <span className="text-2xl font-heading font-bold tracking-tight text-brand-blue leading-none">
+                    EasyPeasy
+                  </span>
+                  <span className="text-xs font-bold tracking-widest uppercase text-brand-red font-sans">Public Portal</span>
+                 </div>
+              </div>
+              <div className="hidden md:block text-sm text-slate-400 font-medium font-sans">
+                  Benvenuto
+              </div>
             </div>
           </div>
-        </div>
-      </header>
-
-      {/* Main Content - Vertical on Mobile, Split on Tablet/Desktop */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        
-        {/* Background Decoration (Global layer behind split columns) */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
-            <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full bg-brand-blue/5 blur-3xl opacity-70"></div>
-            <div className="absolute top-[20%] -right-[5%] w-[30%] h-[30%] rounded-full bg-brand-yellow/10 blur-3xl opacity-70"></div>
-        </div>
+        </header>
 
         {/* Left Column - Static Info & Mascot - Gray Background */}
         <div className="flex-none w-full md:w-1/2 md:h-full flex flex-col items-center justify-center px-6 py-4 relative z-10 overflow-hidden border-b md:border-b-0 md:border-r border-slate-200 bg-slate-100">
@@ -82,6 +75,16 @@ function App() {
                   </div>
               </div>
             </div>
+        </div>
+      </div>
+
+      {/* Main Content - Right Column on Desktop, Below on Mobile */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        {/* Background Decoration (Global layer behind split columns) */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
+            <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full bg-brand-blue/5 blur-3xl opacity-70"></div>
+            <div className="absolute top-[20%] -right-[5%] w-[30%] h-[30%] rounded-full bg-brand-yellow/10 blur-3xl opacity-70"></div>
         </div>
 
         {/* Right Column - Scrollable Form Area - White/Transparent Background */}
