@@ -21,7 +21,7 @@ function App() {
   };
 
   return (
-    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
+    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-auto md:overflow-hidden">
       
       {/* Header + Left Column Container - Sticky on Mobile */}
       <div className="md:static sticky top-0 z-50">
