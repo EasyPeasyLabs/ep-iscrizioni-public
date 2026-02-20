@@ -1,30 +1,20 @@
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-# EP Public Portal
+# Run and deploy your AI Studio app
 
-Questa è la landing page pubblica per la raccolta iscrizioni di **EasyPeasy English School**.
+This contains everything you need to run your app locally.
 
-## Funzionalità
+View your app in AI Studio: https://ai.studio/apps/97d00ed4-7216-4954-ae0e-dc3fd69e6334
 
--   **Gamification**: Mascotte "MechaLemon" interattiva che reagisce alla compilazione del form.
--   **Mobile First**: Layout ottimizzato per smartphone con vista a colonne su desktop.
--   **Lead Generation**: Form multi-step per raccolta dati genitore, figlio e preferenze orarie.
--   **Backendless**: Integrazione diretta con Firebase Firestore (collezione `raw_registrations` per sicurezza, mappata sullo schema `new_leads`).
+## Run Locally
 
-## Stack Tecnologico
+**Prerequisites:**  Node.js
 
--   React 18+
--   Vite
--   TailwindCSS
--   Firebase (Firestore)
--   TypeScript
 
-## Installazione e Sviluppo
-
-1.  Clona il repository.
-2.  Installa le dipendenze: `npm install`
-3.  Avvia il server di sviluppo: `npm run dev`
-4.  Costruisci per produzione: `npm run build`
-
-## Deploy
-
-Vedi `DEPLOY_GUIDE.md` per istruzioni dettagliate su come pubblicare su Vercel.
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

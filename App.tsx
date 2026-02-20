@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { RegistrationForm } from './features/registration/RegistrationForm';
 import { MechaLemon } from './components/ui/MechaLemon';
@@ -21,25 +20,25 @@ function App() {
   };
 
   return (
-    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-auto md:overflow-hidden">
+    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
       
-      {/* Header + Left Column Container - Sticky on Mobile */}
-      <div className="md:static sticky top-0 z-50">
-        {/* Header - Fixed */}
-        <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue shadow-sm flex-none">
+      {/* Header + Intro Section - Fixed/Sticky on Mobile to prevent being pushed off */}
+      <div className="flex-none z-50 bg-slate-50 shadow-sm relative">
+        {/* Header - Compact */}
+        <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue flex-none">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-20 items-center">
+            <div className="flex justify-between h-16 items-center">
               <div className="flex items-center gap-3 group cursor-default">
                 {/* Small logo icon */}
-                 <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform duration-300 border-2 border-brand-red ring-2 ring-brand-blue">
-                  <span className="text-brand-blue font-heading font-bold text-xl">E</span>
-                  <span className="text-brand-red font-heading font-bold text-xl">P</span>
+                 <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform duration-300 border-2 border-brand-red ring-2 ring-brand-blue">
+                  <span className="text-brand-blue font-heading font-bold text-lg">E</span>
+                  <span className="text-brand-red font-heading font-bold text-lg">P</span>
                  </div>
                  <div className="flex flex-col">
-                  <span className="text-2xl font-heading font-bold tracking-tight text-brand-blue leading-none">
+                  <span className="text-xl font-heading font-bold tracking-tight text-brand-blue leading-none">
                     EasyPeasy
                   </span>
-                  <span className="text-xs font-bold tracking-widest uppercase text-brand-red font-sans">Public Portal</span>
+                  <span className="text-[10px] font-bold tracking-widest uppercase text-brand-red font-sans leading-none">Public Portal</span>
                  </div>
               </div>
               <div className="hidden md:block text-sm text-slate-400 font-medium font-sans">
@@ -49,28 +48,30 @@ function App() {
           </div>
         </header>
 
-        {/* Left Column - Static Info & Mascot - Gray Background */}
-        <div className="flex-none w-full md:w-1/2 md:h-full flex flex-col items-center justify-center px-6 py-4 relative z-10 overflow-hidden border-b md:border-b-0 md:border-r border-slate-200 bg-slate-100">
+        {/* Intro Section - Compact & Centered */}
+        <div className="w-full px-4 py-2 bg-slate-100 border-b border-slate-200">
             <div className="text-center max-w-lg mx-auto w-full flex flex-col items-center justify-center">
-              <div className="flex-none">
-                <h1 className="text-2xl md:text-3xl font-heading font-bold text-brand-blue mb-2 leading-tight tracking-tight">
-                  Siamo lieti che tu <br/>
-                  <span className="text-brand-blue inline-block transform hover:scale-105 transition-transform duration-300">voglia conoscerci</span>
+              <div className="flex-none w-full">
+                {/* 1. Single Line Title (Responsive text size) */}
+                <h1 className="text-lg sm:text-xl md:text-2xl font-heading font-bold text-brand-blue leading-tight tracking-tight truncate w-full">
+                  Siamo lieti che tu voglia conoscerci
                 </h1>
-                <div className="w-16 md:w-24 h-1.5 bg-brand-yellow mx-auto rounded-full mb-2 md:mb-3"></div>
+                <div className="w-12 h-1 bg-brand-yellow mx-auto rounded-full my-1"></div>
                 
-                <p className="text-base md:text-lg text-slate-600 font-sans font-light mb-0">
-                  Registrati, è facile facile:
-                </p>
-                <span className="text-2xl md:text-3xl text-brand-red font-hand rotate-[-2deg] inline-block drop-shadow-sm cursor-default mb-2">
-                  "easy peasy"
-                </span>
+                {/* 2. Single Line Subtitle + "easy peasy" */}
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <p className="text-sm sm:text-base text-slate-600 font-sans font-light mb-0 whitespace-nowrap">
+                    Registrati, è facile facile:
+                  </p>
+                  <span className="text-xl sm:text-2xl text-brand-red font-hand rotate-[-2deg] drop-shadow-sm cursor-default whitespace-nowrap">
+                    "easy peasy"
+                  </span>
+                </div>
               </div>
               
-              {/* MechaLemon Mascot - Always Centered & Visible */}
-              <div className="flex-none flex items-center justify-center w-full">
-                  <div className="w-32 h-32 md:w-40 md:h-40 transition-all duration-700 ease-in-out">
-                      {/* Update totalSteps to 8 to match the full form fields */}
+              {/* 3. MechaLemon Mascot - Immediately below, compact */}
+              <div className="flex-none flex items-center justify-center w-full mt-1">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 transition-all duration-700 ease-in-out">
                       <MechaLemon className="w-full h-full" completionStep={completionCount} totalSteps={8} />
                   </div>
               </div>
@@ -78,22 +79,21 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - Right Column on Desktop, Below on Mobile */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+      {/* Main Content - Scrollable Form Area */}
+      <div className="flex-1 overflow-y-auto relative w-full">
         
-        {/* Background Decoration (Global layer behind split columns) */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
-            <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full bg-brand-blue/5 blur-3xl opacity-70"></div>
-            <div className="absolute top-[20%] -right-[5%] w-[30%] h-[30%] rounded-full bg-brand-yellow/10 blur-3xl opacity-70"></div>
+        {/* Background Decoration (Fixed behind scrollable area) */}
+        <div className="fixed inset-0 w-full h-full -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
+            <div className="absolute top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full bg-brand-blue/5 blur-3xl opacity-70"></div>
+            <div className="absolute top-[40%] -right-[5%] w-[30%] h-[30%] rounded-full bg-brand-yellow/10 blur-3xl opacity-70"></div>
         </div>
 
-        {/* Right Column - Scrollable Form Area - White/Transparent Background */}
-        <div className="flex-1 w-full md:w-1/2 h-full overflow-y-auto bg-white/60 backdrop-blur-sm shadow-inner relative">
-           <div className="min-h-full p-6 flex flex-col justify-center items-center">
-              
+        {/* Form Container */}
+        <div className="min-h-full p-4 pb-20 flex flex-col items-center">
+           <div className="w-full max-w-md">
               {/* Conditional Rendering: Form vs Success Popup */}
               {isSuccess ? (
-                <div className="w-full max-w-md animate-fade-in-up mt-4">
+                <div className="w-full animate-fade-in-up mt-4">
                   <div className="bg-white rounded-3xl shadow-2xl border-t-4 border-green-500 p-8 text-center relative overflow-hidden">
                      {/* Success Content */}
                      <div className="absolute top-0 left-0 w-full h-2 bg-green-100">
@@ -135,7 +135,7 @@ function App() {
                 />
               )}
               
-              <footer className="mt-12 text-center opacity-60 text-xs font-sans pb-8 md:pb-0">
+              <footer className="mt-8 text-center opacity-60 text-xs font-sans pb-4">
                 <p>&copy; {new Date().getFullYear()} EasyPeasy Labs. All rights reserved.</p>
                 <div className="flex justify-center gap-4 mt-2">
                     <a href="#" className="hover:text-brand-blue">Termini</a>
@@ -144,7 +144,6 @@ function App() {
               </footer>
            </div>
         </div>
-
       </div>
       <style>{`
         @keyframes shrink-width {
