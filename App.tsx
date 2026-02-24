@@ -20,7 +20,7 @@ function App() {
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
+    <div className="flex-1 w-full h-full flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
       
       {/* Header + Intro Section - Fixed/Sticky on Mobile to prevent being pushed off */}
       <div className="flex-none z-50 bg-slate-50 shadow-sm relative">
