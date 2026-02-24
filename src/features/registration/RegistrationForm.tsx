@@ -72,23 +72,34 @@ export const RegistrationForm: React.FC = () => {
   useEffect(() => {
     const fetchSlots = async () => {
       setIsLoadingLocations(true);
+      console.log("[RegistrationForm] Avvio recupero slot da:", GESTIONALE_SLOTS_URL);
       try {
         const response = await fetch(GESTIONALE_SLOTS_URL, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`
+            "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`,
+            "Accept": "application/json"
           }
         });
         
         if (!response.ok) {
-          throw new Error("Impossibile recuperare le disponibilità.");
+          const errorBody = await response.text();
+          console.error(`[RegistrationForm] Errore API (${response.status}):`, errorBody);
+          throw new Error(`Impossibile recuperare le disponibilità (Status ${response.status}).`);
         }
         
         const locations: Location[] = await response.json();
+        console.log("[RegistrationForm] Sedi caricate con successo:", locations.length);
         setAvailableLocations(locations);
-      } catch (error) {
-        console.error("Error fetching slots:", error);
-        setErrorMessage("Errore nel caricamento delle sedi. Riprova più tardi.");
+      } catch (error: any) {
+        console.error("[RegistrationForm] Errore durante il fetch degli slot:", error);
+        
+        // Messaggio specifico per errori di rete (CORS o connettività)
+        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+          setErrorMessage("Errore di connessione (CORS). Verifica la configurazione del server gestionale.");
+        } else {
+          setErrorMessage(error.message || "Errore nel caricamento delle sedi. Riprova più tardi.");
+        }
       } finally {
         setIsLoadingLocations(false);
       }
@@ -288,7 +299,9 @@ export const RegistrationForm: React.FC = () => {
               >
                 <option value="">{isLoadingLocations ? "Caricamento sedi..." : "Seleziona una sede"}</option>
                 {availableLocations.map(loc => (
-                  <option key={loc.sedeId} value={loc.sedeId}>{loc.nomeSede} - {loc.indirizzo}</option>
+                  <option key={loc.sedeId} value={loc.sedeId}>
+                    {loc.nomeSede}{loc.indirizzo ? ` - ${loc.indirizzo}` : ''}
+                  </option>
                 ))}
               </select>
             </div>
