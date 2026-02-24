@@ -30,13 +30,6 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     };
   }, [isOpen, onClose]);
 
-  // Handle click outside
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   // Use a portal to render outside the main DOM hierarchy for better z-index handling

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { RegistrationForm } from './features/registration/RegistrationForm';
 import { MechaLemon } from './components/ui/MechaLemon';
 
@@ -25,10 +25,11 @@ function App() {
       {/* Header + Intro Section - Fixed/Sticky on Mobile to prevent being pushed off */}
       <div className="flex-none z-50 bg-slate-50 shadow-sm relative">
         {/* Header - Compact */}
-        <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue flex-none">
+        <header className="bg-white/90 backdrop-blur-md border-b-4 border-brand-blue flex-none relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
-              <div className="flex items-center gap-3 group cursor-default">
+              {/* Left: Logo */}
+              <div className="flex items-center gap-3 group cursor-default z-10">
                 {/* Small logo icon */}
                  <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform duration-300 border-2 border-brand-red ring-2 ring-brand-blue">
                   <span className="text-brand-blue font-heading font-bold text-lg">E</span>
@@ -41,37 +42,26 @@ function App() {
                   <span className="text-[10px] font-bold tracking-widest uppercase text-brand-red font-sans leading-none">Public Portal</span>
                  </div>
               </div>
-              <div className="hidden md:block text-sm text-slate-400 font-medium font-sans">
-                  Benvenuto
+
+              {/* Right: Text */}
+              <div className="flex flex-col items-end justify-center z-10">
+                <span className="text-xs sm:text-sm text-slate-500 font-sans font-light leading-tight">
+                  Registrati, è facile facile:
+                </span>
+                <span className="text-lg sm:text-xl text-brand-red font-hand rotate-[-2deg] drop-shadow-sm cursor-default leading-tight">
+                  "easy peasy"
+                </span>
               </div>
             </div>
           </div>
         </header>
 
         {/* Intro Section - Compact & Centered */}
-        <div className="w-full px-4 py-2 bg-slate-100 border-b border-slate-200">
+        <div className="w-full px-4 py-2 bg-slate-50">
             <div className="text-center max-w-lg mx-auto w-full flex flex-col items-center justify-center">
-              <div className="flex-none w-full">
-                {/* 1. Single Line Title (Responsive text size) */}
-                <h1 className="text-lg sm:text-xl md:text-2xl font-heading font-bold text-brand-blue leading-tight tracking-tight truncate w-full">
-                  Siamo lieti che tu voglia conoscerci
-                </h1>
-                <div className="w-12 h-1 bg-brand-yellow mx-auto rounded-full my-1"></div>
-                
-                {/* 2. Single Line Subtitle + "easy peasy" */}
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <p className="text-sm sm:text-base text-slate-600 font-sans font-light mb-0 whitespace-nowrap">
-                    Registrati, è facile facile:
-                  </p>
-                  <span className="text-xl sm:text-2xl text-brand-red font-hand rotate-[-2deg] drop-shadow-sm cursor-default whitespace-nowrap">
-                    "easy peasy"
-                  </span>
-                </div>
-              </div>
-              
-              {/* 3. MechaLemon Mascot - Immediately below, compact */}
-              <div className="flex-none flex items-center justify-center w-full mt-1">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 transition-all duration-700 ease-in-out">
+              {/* MechaLemon Mascot - Compact */}
+              <div className="flex-none flex items-center justify-center w-full">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 transition-all duration-700 ease-in-out">
                       <MechaLemon className="w-full h-full" completionStep={completionCount} totalSteps={8} />
                   </div>
               </div>
@@ -79,8 +69,8 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - Scrollable Form Area */}
-      <div className="flex-1 overflow-y-auto relative w-full">
+      {/* Main Content - No Scroll on Mobile */}
+      <div className="flex-1 overflow-hidden relative w-full">
         
         {/* Background Decoration (Fixed behind scrollable area) */}
         <div className="fixed inset-0 w-full h-full -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
@@ -89,7 +79,7 @@ function App() {
         </div>
 
         {/* Form Container */}
-        <div className="min-h-full p-4 pb-20 flex flex-col items-center">
+        <div className="h-full p-2 flex flex-col items-center">
            <div className="w-full max-w-md">
               {/* Conditional Rendering: Form vs Success Popup */}
               {isSuccess ? (

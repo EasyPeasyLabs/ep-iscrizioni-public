@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -62,6 +63,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const [currentCard, setCurrentCard] = useState(0);
+  const totalCards = 5;
 
   // FIX: Track previous count to avoid unnecessary parent re-renders causing cursor jumps
   const prevCountRef = useRef(0);
@@ -185,248 +189,210 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const currentSlots = formData.selectedLocation ? AVAILABLE_SLOTS[formData.selectedLocation] || [] : [];
 
   // Style helpers
-  const inputBaseStyle = "rounded-xl font-sans transition-all duration-300";
+  const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
   const disabledStyle = "opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200";
   const enabledStyle = "bg-slate-50 focus:bg-white focus:ring-brand-blue focus:border-brand-blue";
 
-  return (
-    <>
-      <div className="w-full max-w-md mx-auto pb-10">
-          <Card className="shadow-2xl border-0 rounded-3xl bg-white/95 backdrop-blur-sm pt-6 border-t-4 border-brand-red">
-            <CardContent className="px-6 pb-8 pt-2">
-              {/* Header removed as requested */}
+  const isCardValid = (index: number) => {
+    switch (index) {
+      case 0: return isNomeValid && isCognomeValid;
+      case 1: return isEmailValid && isPhoneValid;
+      case 2: return isChildNameValid && isChildAgeValid;
+      case 3: return isLocationValid && isSlotValid;
+      case 4: return privacyAccepted;
+      default: return false;
+    }
+  };
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                
-                {/* Sezione Genitore */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1">Dati Genitore</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    {/* 1. Nome - Always Enabled */}
-                    <Input 
-                      id="nome" 
-                      label="Nome" 
-                      placeholder="Mario" 
-                      value={formData.nome}
-                      onChange={handleChange}
-                      error={errors.nome}
-                      required
-                      className={`${inputBaseStyle} ${enabledStyle}`}
-                    />
+  const handleNextCard = () => {
+    if (currentCard < totalCards - 1 && isCardValid(currentCard)) {
+      setCurrentCard(prev => prev + 1);
+    }
+  };
 
-                    {/* 2. Cognome - Requires Name */}
-                    <Input 
-                      id="cognome" 
-                      label="Cognome" 
-                      placeholder="Rossi" 
-                      value={formData.cognome}
-                      onChange={handleChange}
-                      error={errors.cognome}
-                      required
-                      disabled={!isNomeValid}
-                      className={`${inputBaseStyle} ${!isNomeValid ? disabledStyle : enabledStyle}`}
-                    />
+  const handlePrevCard = () => {
+    if (currentCard > 0) {
+      setCurrentCard(prev => prev - 1);
+    }
+  };
 
-                    {/* 3. Email - Requires Cognome */}
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      label="Email" 
-                      placeholder="mario.rossi@email.com" 
-                      value={formData.email}
-                      onChange={handleChange}
-                      error={errors.email}
-                      required
-                      disabled={!isCognomeValid}
-                      className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`}
-                    />
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (currentCard < totalCards - 1) {
+        handleNextCard();
+      } else if (isCardValid(currentCard)) {
+        handleSubmit(e as any);
+      }
+    }
+  };
 
-                    {/* 4. Telefono - Requires Email */}
-                    <Input 
-                      id="telefono" 
-                      type="tel" 
-                      label="Telefono" 
-                      placeholder="+39 333 1234567" 
-                      value={formData.telefono}
-                      onChange={handleChange}
-                      error={errors.telefono}
-                      required
-                      disabled={!isEmailValid}
-                      className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`}
-                    />
-                  </div>
+  const renderCardContent = (index: number) => {
+    switch (index) {
+      case 0:
+        return (
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Dati Genitore</h3>
+            <div className="grid grid-cols-1 gap-2">
+              <Input id="nome" label="Nome" placeholder="Mario" value={formData.nome} onChange={handleChange} error={errors.nome} required className={`${inputBaseStyle} ${enabledStyle}`} />
+              <Input id="cognome" label="Cognome" placeholder="Rossi" value={formData.cognome} onChange={handleChange} error={errors.cognome} required disabled={!isNomeValid} className={`${inputBaseStyle} ${!isNomeValid ? disabledStyle : enabledStyle}`} />
+            </div>
+          </div>
+        );
+      case 1:
+        return (
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
+            <div className="grid grid-cols-1 gap-2">
+              <Input id="email" type="email" label="Email" placeholder="mario.rossi@email.com" value={formData.email} onChange={handleChange} error={errors.email} required disabled={!isCognomeValid} className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`} />
+              <Input id="telefono" type="tel" label="Telefono" placeholder="+39 333 1234567" value={formData.telefono} onChange={handleChange} error={errors.telefono} required disabled={!isEmailValid} className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} />
+            </div>
+          </div>
+        );
+      case 2:
+        return (
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Figlio/a</h3>
+            <div className="grid grid-cols-1 gap-2">
+              <Input id="childName" label="Nome" placeholder="Luca" value={formData.childName} onChange={handleChange} error={errors.childName} required disabled={!isPhoneValid} className={`${inputBaseStyle} ${!isPhoneValid ? disabledStyle : enabledStyle}`} />
+              <div>
+                <label htmlFor="childAge" className={`block text-xs font-medium mb-0.5 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>Età <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                <input id="childAge" type="number" min="1" max="100" placeholder="es. 8" value={formData.childAge} onChange={handleChange} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
+                {errors.childAge && <p className="mt-1 text-xs text-red-600">{errors.childAge}</p>}
+              </div>
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Preferenze</h3>
+            <div className="grid grid-cols-1 gap-2">
+              <div>
+                <label htmlFor="selectedLocation" className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                <select id="selectedLocation" value={formData.selectedLocation} onChange={handleChange} disabled={!isChildAgeValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
+                  <option value="" disabled>Seleziona una sede...</option>
+                  {Object.keys(AVAILABLE_SLOTS).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                </select>
+                {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
+              </div>
+              <div>
+                <label htmlFor="selectedSlot" className={`block text-xs font-medium mb-0.5 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                <select id="selectedSlot" value={formData.selectedSlot} onChange={handleChange} disabled={!isLocationValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
+                  <option value="" disabled>{formData.selectedLocation ? "Seleziona disponibilità..." : "Prima seleziona una sede"}</option>
+                  {currentSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                </select>
+                {errors.selectedSlot && <p className="mt-1 text-xs text-red-600">{errors.selectedSlot}</p>}
+              </div>
+            </div>
+          </div>
+        );
+      case 4:
+        return (
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Conferma</h3>
+            <div className={`transition-opacity duration-300 ${!isSlotValid ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+              <div className="flex items-start gap-2">
+                <div className="flex items-center h-5">
+                  <input id="privacy" name="privacy" type="checkbox" checked={privacyAccepted} disabled={!isSlotValid} onChange={(e) => { setPrivacyAccepted(e.target.checked); if (e.target.checked && errors.privacy) { setErrors(prev => ({ ...prev, privacy: undefined })); } }} className={`h-4 w-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue transition duration-150 ease-in-out cursor-pointer ${errors.privacy ? 'border-red-300 ring-1 ring-red-300' : ''}`} />
                 </div>
-
-                {/* Sezione Studente */}
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-sm font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1">Figlio/a</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                     {/* 5. Nome Figlio - Requires Telefono */}
-                     <Input 
-                      id="childName" 
-                      label="Nome" 
-                      placeholder="Luca" 
-                      value={formData.childName}
-                      onChange={handleChange}
-                      error={errors.childName}
-                      required
-                      disabled={!isPhoneValid}
-                      className={`${inputBaseStyle} ${!isPhoneValid ? disabledStyle : enabledStyle}`}
-                    />
-                    
-                    {/* 6. Età - Requires Child Name */}
-                    <div className="mb-4">
-                      <label htmlFor="childAge" className={`block text-sm font-medium mb-1 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>
-                        Età <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span>
-                      </label>
-                      <input
-                        id="childAge"
-                        type="number"
-                        min="1"
-                        max="100"
-                        placeholder="es. 8"
-                        value={formData.childAge}
-                        onChange={handleChange}
-                        disabled={!isChildNameValid}
-                        className={`appearance-none block w-full px-3 py-2 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${
-                          errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'
-                        } ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}
-                      />
-                      {errors.childAge && <p className="mt-1 text-sm text-red-600">{errors.childAge}</p>}
-                    </div>
-                  </div>
-                </div>
-
-                 {/* Sezione Preferenze */}
-                 <div className="space-y-3 pt-2">
-                  <h3 className="text-sm font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1">Preferenze</h3>
-                  
-                  {/* 7. Location - Requires Child Age */}
-                  <div className="mb-4">
-                    <label htmlFor="selectedLocation" className={`block text-sm font-medium mb-1 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>
-                      Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span>
-                    </label>
-                    <select
-                      id="selectedLocation"
-                      value={formData.selectedLocation}
-                      onChange={handleChange}
-                      disabled={!isChildAgeValid}
-                      className={`block w-full px-3 py-2 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${
-                         errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'
-                      } ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}
-                    >
-                      <option value="" disabled>Seleziona una sede...</option>
-                      {Object.keys(AVAILABLE_SLOTS).map(loc => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
-                    </select>
-                    {errors.selectedLocation && <p className="mt-1 text-sm text-red-600">{errors.selectedLocation}</p>}
-                  </div>
-
-                  {/* 8. Slot Select - Requires Location */}
-                  <div className="mb-4">
-                    <label htmlFor="selectedSlot" className={`block text-sm font-medium mb-1 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>
-                      Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span>
-                    </label>
-                    <select
-                      id="selectedSlot"
-                      value={formData.selectedSlot}
-                      onChange={handleChange}
-                      disabled={!isLocationValid}
-                      className={`block w-full px-3 py-2 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${
-                         errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'
-                      } ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}
-                    >
-                      <option value="" disabled>
-                        {formData.selectedLocation ? "Seleziona disponibilità..." : "Prima seleziona una sede"}
-                      </option>
-                      {currentSlots.map(slot => (
-                        <option key={slot} value={slot}>{slot}</option>
-                      ))}
-                    </select>
-                    {errors.selectedSlot && <p className="mt-1 text-sm text-red-600">{errors.selectedSlot}</p>}
-                  </div>
-                </div>
-
-                {/* Privacy Checkbox Area - Requires Slot */}
-                <div className={`mt-5 pt-3 border-t border-slate-100 transition-opacity duration-300 ${!isSlotValid ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center h-6">
-                      <input
-                        id="privacy"
-                        name="privacy"
-                        type="checkbox"
-                        checked={privacyAccepted}
-                        disabled={!isSlotValid}
-                        onChange={(e) => {
-                          setPrivacyAccepted(e.target.checked);
-                          if (e.target.checked && errors.privacy) {
-                            setErrors(prev => ({ ...prev, privacy: undefined }));
-                          }
-                        }}
-                        className={`h-5 w-5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue transition duration-150 ease-in-out cursor-pointer ${
-                          errors.privacy ? 'border-red-300 ring-1 ring-red-300' : ''
-                        }`}
-                      />
-                    </div>
-                    <div className="text-sm">
-                      <label htmlFor="privacy" className="font-medium text-slate-700 cursor-pointer font-sans">
-                        Consenso Privacy <span className="text-brand-red">*</span>
-                      </label>
-                      <p className="text-slate-500 text-xs mt-1 leading-relaxed font-sans">
-                        Accetto il trattamento dei miei dati personali secondo la 
-                        <button 
-                          type="button"
-                          onClick={() => setShowPrivacyModal(true)}
-                          className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors"
-                        >
-                          Privacy Policy
-                        </button> 
-                        ai fini della gestione dell'evento.
-                      </p>
-                    </div>
-                  </div>
-                  {errors.privacy && (
-                    <p className="mt-2 text-sm text-brand-red pl-8 font-medium font-sans">{errors.privacy}</p>
-                  )}
-                </div>
-                
-                {globalError && (
-                  <div className="p-4 rounded-xl bg-red-50 border border-red-100 animate-pulse">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-brand-red font-serif">Errore</h3>
-                        <div className="mt-1 text-sm text-red-700 font-sans">
-                          <p>{globalError}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Submit Button - Requires Privacy */}
-                <div className={`mt-6 transition-all duration-300 ${!privacyAccepted ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-                  <Button 
-                    type="submit" 
-                    className="w-full py-4 text-3xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 font-sans tracking-wide rounded-xl bg-gradient-to-r from-brand-blue to-[#003399] text-white" 
-                    isLoading={loading}
-                    disabled={!privacyAccepted}
-                  >
-                    INVIA
-                  </Button>
-                  <p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center font-sans">
-                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
-                    I dati verranno salvati in modo sicuro su Firebase.
+                <div className="text-xs">
+                  <label htmlFor="privacy" className="font-medium text-slate-700 cursor-pointer font-sans">Consenso Privacy <span className="text-brand-red">*</span></label>
+                  <p className="text-slate-500 text-[10px] mt-0.5 leading-tight font-sans">
+                    Accetto il trattamento dei miei dati personali secondo la 
+                    <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button> 
+                    ai fini della gestione dell'evento.
                   </p>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+              </div>
+              {errors.privacy && <p className="mt-1 text-xs text-brand-red pl-6 font-medium font-sans">{errors.privacy}</p>}
+            </div>
+            
+            {globalError && (
+              <div className="p-2 rounded-xl bg-red-50 border border-red-100 animate-pulse">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-2">
+                    <h3 className="text-xs font-medium text-brand-red font-serif">Errore</h3>
+                    <div className="mt-0.5 text-xs text-red-700 font-sans">
+                      <p>{globalError}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className={`pt-1 transition-all duration-300 ${!privacyAccepted ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+              <Button type="button" onClick={handleSubmit} isLoading={loading} disabled={!privacyAccepted} className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 font-sans text-base">
+                INVIA
+              </Button>
+              <p className="text-center text-[10px] text-slate-400 mt-1 flex items-center justify-center font-sans">
+                <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
+                I dati verranno salvati in modo sicuro.
+              </p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <div className="w-full max-w-md mx-auto pb-10 relative flex items-center justify-center">
+        
+        {/* Left Chevron */}
+        <button 
+          type="button"
+          onClick={handlePrevCard}
+          disabled={currentCard === 0}
+          className={`absolute left-0 z-10 p-1 sm:p-2 -ml-6 sm:-ml-12 text-brand-blue transition-all duration-300 ${currentCard === 0 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'}`}
+          aria-label="Indietro"
+        >
+          <ChevronLeft className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} />
+        </button>
+
+        {/* Card Container */}
+        <div className="w-full overflow-hidden px-1">
+          <form onKeyDown={handleKeyDown} className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCard * 100}%)` }}>
+            {[0, 1, 2, 3, 4].map((index) => (
+              <div key={index} className="w-full flex-shrink-0 px-1">
+                <Card className="shadow-2xl border-0 rounded-3xl bg-white/95 backdrop-blur-sm pt-3 border-t-4 border-brand-red min-h-[200px] flex flex-col">
+                  <CardContent className="px-4 pb-3 pt-1 flex-1 overflow-y-auto">
+                    {renderCardContent(index)}
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+          </form>
+        </div>
+
+        {/* Right Chevron */}
+        <button 
+          type="button"
+          onClick={handleNextCard}
+          disabled={currentCard === totalCards - 1 || !isCardValid(currentCard)}
+          className={`absolute right-0 z-10 p-1 sm:p-2 -mr-6 sm:-mr-12 text-brand-blue transition-all duration-300 ${currentCard === totalCards - 1 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'} ${!isCardValid(currentCard) ? 'opacity-30 cursor-not-allowed' : ''}`}
+          aria-label="Avanti"
+        >
+          <ChevronRight className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} />
+        </button>
+
+      </div>
+
+      {/* Pagination Dots */}
+      <div className="flex justify-center gap-2 -mt-6 pb-4">
+        {[0, 1, 2, 3, 4].map((index) => (
+          <div 
+            key={index} 
+            className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`}
+          />
+        ))}
       </div>
 
       {/* Privacy Modal */}
