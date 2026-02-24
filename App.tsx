@@ -20,7 +20,7 @@ function App() {
   };
 
   return (
-    <div className="h-[100svh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-brand-yellow selection:text-brand-blue overflow-hidden">
       
       {/* Header + Intro Section - Fixed/Sticky on Mobile to prevent being pushed off */}
       <div className="flex-none z-50 bg-slate-50 shadow-sm relative">
@@ -69,8 +69,8 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - No Scroll on Mobile */}
-      <div className="flex-1 overflow-hidden relative w-full">
+      {/* Main Content - Scrollable Form Area with hidden scrollbar */}
+      <div className="flex-1 overflow-y-auto relative w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* Background Decoration (Fixed behind scrollable area) */}
         <div className="fixed inset-0 w-full h-full -z-10 pointer-events-none bg-gradient-to-b from-slate-50 to-slate-100">
@@ -79,7 +79,7 @@ function App() {
         </div>
 
         {/* Form Container */}
-        <div className="h-full p-2 flex flex-col items-center">
+        <div className="min-h-full p-2 pb-32 flex flex-col items-center justify-start">
            <div className="w-full max-w-md">
               {/* Conditional Rendering: Form vs Success Popup */}
               {isSuccess ? (
