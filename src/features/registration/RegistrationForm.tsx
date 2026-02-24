@@ -6,6 +6,20 @@ import { Button } from '../../components/ui/Button';
 import { LemonMascot } from '../../components/illustrations/LemonMascot';
 
 // -- TYPES --
+interface Slot {
+  giorno: string;
+  orario: string;
+  postiRimanenti: number;
+  esaurito: boolean;
+}
+
+interface Location {
+  sedeId: string;
+  nomeSede: string;
+  indirizzo: string;
+  slot: Slot[];
+}
+
 interface RegistrationData {
   // Step 0: Genitore
   parentFirstName: string;
@@ -37,11 +51,8 @@ const INITIAL_DATA: RegistrationData = {
   courseType: 'standard'
 };
 
-const AVAILABLE_LOCATIONS = [
-  { id: 'sede-roma-nord', name: 'Roma Nord', slots: ['16:30', '17:30', '18:30'] },
-  { id: 'sede-roma-sud', name: 'Roma Sud', slots: ['17:00', '18:00'] },
-  { id: 'sede-milano', name: 'Milano Centro', slots: ['15:00', '16:00', '17:00'] }
-];
+const GESTIONALE_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getAvailableSlots";
+const BRIDGE_SECURE_KEY = "EP_V1_BRIDGE_SECURE_KEY_8842_XY";
 
 export const RegistrationForm: React.FC = () => {
   const [step, setStep] = useState<number>(0);
@@ -52,6 +63,39 @@ export const RegistrationForm: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isDemoMode, setIsDemoMode] = useState(false);
+  
+  // Dynamic locations state
+  const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+
+  // Fetch available slots from Gestionale API
+  useEffect(() => {
+    const fetchSlots = async () => {
+      setIsLoadingLocations(true);
+      try {
+        const response = await fetch(GESTIONALE_SLOTS_URL, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error("Impossibile recuperare le disponibilità.");
+        }
+        
+        const locations: Location[] = await response.json();
+        setAvailableLocations(locations);
+      } catch (error) {
+        console.error("Error fetching slots:", error);
+        setErrorMessage("Errore nel caricamento delle sedi. Riprova più tardi.");
+      } finally {
+        setIsLoadingLocations(false);
+      }
+    };
+
+    fetchSlots();
+  }, []);
 
   // Auto-redirect logic for Step 3
   useEffect(() => {
@@ -137,44 +181,17 @@ export const RegistrationForm: React.FC = () => {
     setErrorMessage('');
 
     try {
-      // Attempt to save to Firestore
-      await addDoc(collection(db, 'registrations'), {
+      // Attempt to save to Firestore in the raw_registrations collection
+      await addDoc(collection(db, 'raw_registrations'), {
         ...data,
-        status: 'pending',
-        crmStatus: 'pending',
+        syncStatus: 'pending_sync', // Initial status for the Cloud Function
         createdAt: serverTimestamp(),
-        source: 'web_wizard_v2'
+        source: 'public_portal_v1'
       });
       setStep(3);
     } catch (error: any) {
       console.error("Firestore Error:", error);
-      
-      // Robust error checking for permissions
-      const errString = String(error);
-      const errCode = error?.code;
-      const errMessage = error?.message || '';
-
-      // Check for varied permission error messages
-      const isPermissionError = 
-        errCode === 'permission-denied' ||
-        errString.includes('permission') || 
-        errString.includes('Missing') || 
-        errString.includes('insufficient') ||
-        errMessage.includes('Missing or insufficient permissions');
-
-      if (isPermissionError) {
-        console.warn("Permission denied detected (likely Demo/Public env). Switching to DEMO MODE simulation.");
-        setIsDemoMode(true);
-        
-        // Short delay to simulate network request, then proceed to success
-        setTimeout(() => {
-          setIsSubmitting(false);
-          setStep(3);
-        }, 800);
-        return; 
-      }
-
-      setErrorMessage("Errore durante l'invio. Riprova.");
+      setErrorMessage("Errore di connessione. Riprova tra poco.");
       setIsSubmitting(false);
     }
   };
@@ -254,7 +271,7 @@ export const RegistrationForm: React.FC = () => {
           </div>
         );
       case 2:
-        const selectedLocation = AVAILABLE_LOCATIONS.find(l => l.id === data.locationId);
+        const selectedLocation = availableLocations.find(l => l.sedeId === data.locationId);
         return (
           <div className="space-y-4">
              <div className="text-center mb-2">
@@ -266,11 +283,12 @@ export const RegistrationForm: React.FC = () => {
                 name="locationId"
                 value={data.locationId}
                 onChange={handleChange}
-                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                disabled={isLoadingLocations}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
               >
-                <option value="">Seleziona una sede</option>
-                {AVAILABLE_LOCATIONS.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                <option value="">{isLoadingLocations ? "Caricamento sedi..." : "Seleziona una sede"}</option>
+                {availableLocations.map(loc => (
+                  <option key={loc.sedeId} value={loc.sedeId}>{loc.nomeSede} - {loc.indirizzo}</option>
                 ))}
               </select>
             </div>
@@ -281,12 +299,18 @@ export const RegistrationForm: React.FC = () => {
                 name="slotTime"
                 value={data.slotTime}
                 onChange={handleChange}
-                disabled={!data.locationId}
+                disabled={!data.locationId || isLoadingLocations}
                 className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
               >
                 <option value="">Seleziona orario</option>
-                {selectedLocation?.slots.map(slot => (
-                  <option key={slot} value={slot}>{slot}</option>
+                {selectedLocation?.slot.map(s => (
+                  <option 
+                    key={`${s.giorno}-${s.orario}`} 
+                    value={`${s.giorno} ${s.orario}`}
+                    disabled={s.esaurito}
+                  >
+                    {s.giorno} {s.orario} {s.esaurito ? '(ESAURITO)' : `(${s.postiRimanenti} posti)`}
+                  </option>
                 ))}
               </select>
             </div>
