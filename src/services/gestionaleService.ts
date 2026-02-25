@@ -3,7 +3,7 @@ import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 
 // --- CONFIGURAZIONE PROJECT A (GESTIONALE) ---
 // SOSTITUISCI CON I DATI REALI DEL TUO GESTIONALE
-const firebaseConfig = {
+const gestionaleConfig = {
   apiKey: "AIzaSyDON9vmJzNvYH7Eqw3c2KlpgOjr3ToIJhM",
   authDomain: "ep-gestionale-v1.firebaseapp.com",
   projectId: "ep-gestionale-v1",
@@ -13,6 +13,7 @@ const firebaseConfig = {
 };
 
 // Inizializza una SECONDA app Firebase
+// Usiamo la variabile corretta 'gestionaleConfig' definita sopra
 const gestionaleApp = initializeApp(gestionaleConfig, "gestionaleApp");
 const gestionaleDb = getFirestore(gestionaleApp);
 
