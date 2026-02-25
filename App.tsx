@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RegistrationForm } from './features/registration/RegistrationForm';
+import { RegistrationForm } from './src/features/registration/RegistrationForm';
 import { MechaLemon } from './components/ui/MechaLemon';
 
 function App() {
