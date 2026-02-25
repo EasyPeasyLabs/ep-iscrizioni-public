@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { db, serverTimestamp } from '../../lib/firebase';
+// Importiamo il nuovo servizio per comunicare con il Gestionale (Project A)
+import { sendLeadToGestionale, getLocationsFromGestionale } from '../../services/gestionaleService';
 
 interface FormErrors {
   nome?: string;
@@ -22,29 +23,6 @@ interface RegistrationFormProps {
   onProgressUpdate?: (count: number) => void;
   onSuccess?: () => void;
 }
-
-// Mock Data for Slots
-const AVAILABLE_SLOTS: Record<string, string[]> = {
-  "Bari - Poggiofranco": [
-    "Lunedì 16:30 - 18:00",
-    "Martedì 17:00 - 18:30", 
-    "Giovedì 15:00 - 16:30"
-  ],
-  "Bari - Murat": [
-    "Lunedì 15:00 - 16:30",
-    "Mercoledì 18:00 - 19:30",
-    "Venerdì 17:00 - 18:30"
-  ],
-  "Trani": [
-    "Martedì 16:00 - 17:30",
-    "Giovedì 18:00 - 19:30"
-  ],
-  "Online": [
-    "Lunedì 18:00 - 19:30",
-    "Mercoledì 15:00 - 16:30",
-    "Sabato 10:00 - 11:30"
-  ]
-};
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -64,6 +42,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
+  // Stato per gestire gli slot caricati dinamicamente dal Gestionale
+  const [availableSlots, setAvailableSlots] = useState<Record<string, string[]>>({});
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+
   const [currentCard, setCurrentCard] = useState(0);
   const totalCards = 5;
 
@@ -79,6 +61,34 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isChildAgeValid = formData.childAge.trim().length > 0;
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
+
+  // Caricamento Slot dal Gestionale all'avvio
+  useEffect(() => {
+    const fetchSlots = async () => {
+      try {
+        setIsLoadingSlots(true);
+        const slots = await getLocationsFromGestionale();
+        
+        if (Object.keys(slots).length > 0) {
+          setAvailableSlots(slots);
+        } else {
+          // Fallback statico se il gestionale non risponde o è vuoto (utile per test)
+          console.warn("Nessuno slot trovato dal gestionale, uso fallback statico.");
+          setAvailableSlots({
+            "Bari - Poggiofranco": ["Lunedì 16:30 - 18:00", "Giovedì 15:00 - 16:30"],
+            "Online": ["Lunedì 18:00 - 19:30", "Mercoledì 15:00 - 16:30"]
+          });
+        }
+      } catch (err) {
+        console.error("Errore caricamento slot:", err);
+        setGlobalError("Impossibile caricare le disponibilità aggiornate.");
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    };
+
+    fetchSlots();
+  }, []);
 
   // Calculate completed fields and notify parent (Gamification)
   useEffect(() => {
@@ -153,12 +163,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     setLoading(true);
 
     try {
-      // ARCHITECTURE COMPLIANCE: Map to 'new_leads' schema structure but save to allowed collection
+      // Preparazione dati per il gestionale
       const leadData = {
-        parentFirstName: formData.nome,
-        parentLastName: formData.cognome,
-        parentEmail: formData.email,
-        parentPhone: formData.telefono,
+        nome: formData.nome,
+        cognome: formData.cognome,
+        email: formData.email,
+        telefono: formData.telefono,
         childName: formData.childName, 
         childAge: formData.childAge,
         selectedLocation: formData.selectedLocation,
@@ -166,16 +176,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
         status: "new",
         privacyConsent: true,
-        submittedAt: serverTimestamp(),
         source: "ep_public_web",
         userAgent: navigator.userAgent
       };
 
-      // Write to 'raw_registrations' to avoid permission errors in 'new_leads'
-      await db.collection("raw_registrations").add(leadData);
+      // Invio al Gestionale tramite il servizio dedicato
+      const result = await sendLeadToGestionale(leadData);
 
-      if (onSuccess) {
-        onSuccess();
+      if (result.success) {
+        if (onSuccess) {
+          onSuccess();
+        }
+      } else {
+        throw new Error("Errore durante l'invio al gestionale: " + result.error);
       }
       
     } catch (err) {
@@ -186,7 +199,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   };
 
-  const currentSlots = formData.selectedLocation ? AVAILABLE_SLOTS[formData.selectedLocation] || [] : [];
+  // Usa lo stato availableSlots invece della costante statica
+  const currentSlots = formData.selectedLocation ? availableSlots[formData.selectedLocation] || [] : [];
 
   // Style helpers
   const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
@@ -270,9 +284,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             <div className="grid grid-cols-1 gap-2">
               <div>
                 <label htmlFor="selectedLocation" className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <select id="selectedLocation" value={formData.selectedLocation} onChange={handleChange} disabled={!isChildAgeValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
-                  <option value="" disabled>Seleziona una sede...</option>
-                  {Object.keys(AVAILABLE_SLOTS).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                <select id="selectedLocation" value={formData.selectedLocation} onChange={handleChange} disabled={!isChildAgeValid || isLoadingSlots} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
+                  <option value="" disabled>{isLoadingSlots ? "Caricamento sedi..." : "Seleziona una sede..."}</option>
+                  {Object.keys(availableSlots).map(loc => <option key={loc} value={loc}>{loc}</option>)}
                 </select>
                 {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
               </div>
