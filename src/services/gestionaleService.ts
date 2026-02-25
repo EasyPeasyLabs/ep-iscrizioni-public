@@ -66,6 +66,8 @@ export const sendLeadToGestionale = async (data: LeadData) => {
 
 /**
  * Recupera le sedi e gli slot disponibili dal gestionale
+ * FILTRA: Sedi chiuse, Sedi nascoste, Slot nascosti
+ * INCLUDE: Tipo slot (LAB/SG) e Fascia d'età
  */
 export const getLocationsFromGestionale = async (): Promise<Record<string, string[]>> => {
   try {
@@ -75,20 +77,35 @@ export const getLocationsFromGestionale = async (): Promise<Record<string, strin
 
     suppliersSnap.forEach(doc => {
       const data = doc.data();
+      
+      // Filtro Fornitore: Se cancellato, salta
+      if (data.isDeleted) return;
+
       if (data.locations && Array.isArray(data.locations)) {
         data.locations.forEach((loc: any) => {
+          // Filtro Sede: Se chiusa o nascosta, salta
+          if (loc.closedAt) return;
+          if (loc.isPubliclyVisible === false) return;
+
           // Costruisci la chiave "Città - Nome Sede" o solo "Nome Sede"
           const locationName = loc.city ? `${loc.city} - ${loc.name}` : loc.name;
           
           // Mappa gli slot disponibili
-          // Nota: Qui stiamo semplificando. Nel gestionale gli slot sono oggetti complessi.
-          // Per ora, assumiamo che 'availability' sia un array di oggetti { dayOfWeek, startTime, endTime }
-          // e li convertiamo in stringhe leggibili.
-          
-          const slots = (loc.availability || []).map((slot: any) => {
-            const days = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-            return `${days[slot.dayOfWeek]} ${slot.startTime} - ${slot.endTime}`;
-          });
+          const slots = (loc.availability || [])
+            .filter((slot: any) => slot.isPubliclyVisible !== false) // Filtro Slot: Se nascosto, salta
+            .map((slot: any) => {
+              const days = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+              
+              // Costruisci etichetta slot: "[TIPO] Giorno OraInizio-OraFine (Età)"
+              // Es: "[LAB] Lunedì 16:00 - 18:00 (3-6 anni)"
+              let label = `[${slot.type || 'LAB'}] ${days[slot.dayOfWeek]} ${slot.startTime} - ${slot.endTime}`;
+              
+              if (slot.minAge || slot.maxAge) {
+                label += ` (${slot.minAge || 0}-${slot.maxAge || '?'} anni)`;
+              }
+              
+              return label;
+            });
 
           if (slots.length > 0) {
             slotsMap[locationName] = slots;
