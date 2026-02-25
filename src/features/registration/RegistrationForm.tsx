@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react'; // Assicurati di importare MapPin
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-// Importiamo il nuovo servizio per comunicare con il Gestionale (Project A)
-import { sendLeadToGestionale, getLocationsFromGestionale } from '../../services/gestionaleService';
+import { sendLeadToGestionale, getLocationsFromGestionale, PublicLocation } from '../../services/gestionaleService';
 
+// ... (Interfacce FormErrors e Props rimangono uguali) ...
 interface FormErrors {
   nome?: string;
   cognome?: string;
@@ -25,6 +25,7 @@ interface RegistrationFormProps {
 }
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
+  // ... (Stati formData, privacy, loading, errors rimangono uguali) ...
   const [formData, setFormData] = useState({
     nome: '',
     cognome: '',
@@ -32,7 +33,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     telefono: '',
     childName: '',
     childAge: '',
-    selectedLocation: '',
+    selectedLocation: '', // Qui salveremo l'ID della sede
     selectedSlot: ''
   });
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -42,17 +43,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Stato per gestire gli slot caricati dinamicamente dal Gestionale
-  const [availableSlots, setAvailableSlots] = useState<Record<string, string[]>>({});
+  // NUOVO STATO: Array di oggetti PublicLocation invece di Record
+  const [availableLocations, setAvailableLocations] = useState<PublicLocation[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
 
   const [currentCard, setCurrentCard] = useState(0);
   const totalCards = 5;
-
-  // FIX: Track previous count to avoid unnecessary parent re-renders causing cursor jumps
   const prevCountRef = useRef(0);
 
-  // Validation Logic Helpers (Used for Sequential Locking)
+  // ... (Validation Logic Helpers rimangono uguali) ...
   const isNomeValid = formData.nome.trim().length > 1;
   const isCognomeValid = formData.cognome.trim().length > 1;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
@@ -62,108 +61,88 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
 
-  // Caricamento Slot dal Gestionale all'avvio
+  // Caricamento Sedi
   useEffect(() => {
     const fetchSlots = async () => {
       try {
         setIsLoadingSlots(true);
-        const slots = await getLocationsFromGestionale();
-        
-        if (Object.keys(slots).length > 0) {
-          setAvailableSlots(slots);
-        } else {
-          // Fallback statico se il gestionale non risponde o è vuoto (utile per test)
-          console.warn("Nessuno slot trovato dal gestionale, uso fallback statico.");
-          setAvailableSlots({
-            "Bari - Poggiofranco": ["Lunedì 16:30 - 18:00", "Giovedì 15:00 - 16:30"],
-            "Online": ["Lunedì 18:00 - 19:30", "Mercoledì 15:00 - 16:30"]
-          });
-        }
+        const locations = await getLocationsFromGestionale();
+        setAvailableLocations(locations);
       } catch (err) {
-        console.error("Errore caricamento slot:", err);
-        setGlobalError("Impossibile caricare le disponibilità aggiornate.");
+        console.error("Errore caricamento:", err);
+        setGlobalError("Impossibile caricare le disponibilità.");
       } finally {
         setIsLoadingSlots(false);
       }
     };
-
     fetchSlots();
   }, []);
 
-  // Calculate completed fields and notify parent (Gamification)
+  // ... (useEffect per onProgressUpdate rimane uguale) ...
   useEffect(() => {
     let count = 0;
-    // Check sequentially matches the animation logic strictly
     if (isNomeValid) count++;
     if (isCognomeValid) count++;
     if (isEmailValid) count++;
     if (isPhoneValid) count++;
     if (isChildNameValid) count++;
     if (isChildAgeValid) count++;
-    if (isLocationValid && isSlotValid) count++; // Combined step
+    if (isLocationValid && isSlotValid) count++;
     if (privacyAccepted) count++;
     
-    // Only update parent if count HAS CHANGED. 
-    // This prevents the parent from re-rendering on every keystroke, fixing the cursor jump.
     if (onProgressUpdate && count !== prevCountRef.current) {
       onProgressUpdate(count);
       prevCountRef.current = count;
     }
   }, [formData, privacyAccepted, onProgressUpdate, isNomeValid, isCognomeValid, isEmailValid, isPhoneValid, isChildNameValid, isChildAgeValid, isLocationValid, isSlotValid]);
 
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    
-    if (id === 'selectedLocation') {
-      setFormData(prev => ({ ...prev, selectedLocation: value, selectedSlot: '' }));
-    } else {
-      setFormData(prev => ({ ...prev, [id]: value }));
-    }
-
-    if (errors[id as keyof FormErrors]) {
-      setErrors(prev => ({ ...prev, [id]: undefined }));
-    }
+    setFormData(prev => ({ ...prev, [id]: value }));
+    if (errors[id as keyof FormErrors]) setErrors(prev => ({ ...prev, [id]: undefined }));
   };
 
+  // Funzione specifica per la selezione della sede (Card)
+  const handleLocationSelect = (locationId: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      selectedLocation: locationId, 
+      selectedSlot: '' // Resetta lo slot quando cambia la sede
+    }));
+    if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
+  };
+
+  // ... (Funzione validate() rimane uguale) ...
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
     let isValid = true;
-
     if (!isNomeValid) { newErrors.nome = "Il nome è obbligatorio"; isValid = false; }
     if (!isCognomeValid) { newErrors.cognome = "Il cognome è obbligatorio"; isValid = false; }
     if (!formData.email.trim()) { newErrors.email = "L'email è obbligatoria"; isValid = false; } 
     else if (!isEmailValid) { newErrors.email = "Email non valida"; isValid = false; }
-    
     if (!formData.telefono.trim()) { newErrors.telefono = "Telefono obbligatorio"; isValid = false; }
-    else if (!isPhoneValid) {
-        newErrors.telefono = "Numero non valido";
-        isValid = false;
-    }
-
+    else if (!isPhoneValid) { newErrors.telefono = "Numero non valido"; isValid = false; }
     if (!isChildNameValid) { newErrors.childName = "Nome studente obbligatorio"; isValid = false; }
     if (!isChildAgeValid) { newErrors.childAge = "Età richiesta"; isValid = false; }
-
     if (!formData.selectedLocation) { newErrors.selectedLocation = "Seleziona una sede"; isValid = false; }
     if (!formData.selectedSlot) { newErrors.selectedSlot = "Seleziona un orario"; isValid = false; }
-
     if (!privacyAccepted) { newErrors.privacy = "Consenso obbligatorio"; isValid = false; }
-
     setErrors(newErrors);
     return isValid;
   };
 
+  // ... (Funzione handleSubmit() rimane uguale) ...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGlobalError(null);
-
-    if (!validate()) {
-      return;
-    }
-
+    if (!validate()) return;
     setLoading(true);
-
     try {
-      // Preparazione dati per il gestionale
+      // Trova il nome leggibile della sede per le note
+      const selectedLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
+      const locName = selectedLocObj ? `${selectedLocObj.city} - ${selectedLocObj.name}` : formData.selectedLocation;
+
       const leadData = {
         nome: formData.nome,
         cognome: formData.cognome,
@@ -171,7 +150,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         telefono: formData.telefono,
         childName: formData.childName, 
         childAge: formData.childAge,
-        selectedLocation: formData.selectedLocation,
+        selectedLocation: locName, // Inviamo il nome leggibile al gestionale
         selectedSlot: formData.selectedSlot,
         notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
         status: "new",
@@ -179,18 +158,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         source: "ep_public_web",
         userAgent: navigator.userAgent
       };
-
-      // Invio al Gestionale tramite il servizio dedicato
       const result = await sendLeadToGestionale(leadData);
-
       if (result.success) {
-        if (onSuccess) {
-          onSuccess();
-        }
+        if (onSuccess) onSuccess();
       } else {
         throw new Error("Errore durante l'invio al gestionale: " + result.error);
       }
-      
     } catch (err) {
       console.error("Errore durante l'invio:", err);
       setGlobalError("Si è verificato un errore di connessione. Riprova più tardi.");
@@ -199,10 +172,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   };
 
-  // Usa lo stato availableSlots invece della costante statica
-  const currentSlots = formData.selectedLocation ? availableSlots[formData.selectedLocation] || [] : [];
+  // Calcola gli slot correnti in base alla sede selezionata
+  const currentLocationObj = availableLocations.find(l => l.id === formData.selectedLocation);
+  const currentSlots = currentLocationObj ? currentLocationObj.slots : [];
 
-  // Style helpers
+  // ... (Style helpers e isCardValid rimangono uguali) ...
   const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
   const disabledStyle = "opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200";
   const enabledStyle = "bg-slate-50 focus:bg-white focus:ring-brand-blue focus:border-brand-blue";
@@ -218,32 +192,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   };
 
-  const handleNextCard = () => {
-    if (currentCard < totalCards - 1 && isCardValid(currentCard)) {
-      setCurrentCard(prev => prev + 1);
-    }
-  };
-
-  const handlePrevCard = () => {
-    if (currentCard > 0) {
-      setCurrentCard(prev => prev - 1);
-    }
-  };
-
+  const handleNextCard = () => { if (currentCard < totalCards - 1 && isCardValid(currentCard)) setCurrentCard(prev => prev + 1); };
+  const handlePrevCard = () => { if (currentCard > 0) setCurrentCard(prev => prev - 1); };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (currentCard < totalCards - 1) {
-        handleNextCard();
-      } else if (isCardValid(currentCard)) {
-        handleSubmit(e as any);
-      }
+      if (currentCard < totalCards - 1) handleNextCard();
+      else if (isCardValid(currentCard)) handleSubmit(e as any);
     }
   };
 
   const renderCardContent = (index: number) => {
     switch (index) {
-      case 0:
+      case 0: // Dati Genitore (Invariato)
         return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Dati Genitore</h3>
@@ -253,7 +214,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 1:
+      case 1: // Contatti (Invariato)
         return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
@@ -263,7 +224,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 2:
+      case 2: // Figlio (Invariato)
         return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Figlio/a</h3>
@@ -277,19 +238,55 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 3:
+      case 3: // Preferenze (MODIFICATO: Card per le Sedi)
         return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Preferenze</h3>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 gap-4">
+              
+              {/* Selezione Sede a Card */}
               <div>
-                <label htmlFor="selectedLocation" className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <select id="selectedLocation" value={formData.selectedLocation} onChange={handleChange} disabled={!isChildAgeValid || isLoadingSlots} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
-                  <option value="" disabled>{isLoadingSlots ? "Caricamento sedi..." : "Seleziona una sede..."}</option>
-                  {Object.keys(availableSlots).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
+                <label className={`block text-xs font-medium mb-2 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                
+                {isLoadingSlots ? (
+                  <div className="text-xs text-slate-500 italic">Caricamento sedi disponibili...</div>
+                ) : (
+                  <div className={`grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1 ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {availableLocations.map(loc => (
+                      <div 
+                        key={loc.id}
+                        onClick={() => handleLocationSelect(loc.id)}
+                        className={`
+                          relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 group
+                          ${formData.selectedLocation === loc.id 
+                            ? 'border-brand-blue bg-blue-50 shadow-sm' 
+                            : 'border-slate-100 bg-white hover:border-brand-blue/30 hover:bg-slate-50'}
+                        `}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className={`text-sm font-bold ${formData.selectedLocation === loc.id ? 'text-brand-blue' : 'text-slate-700'}`}>
+                              {loc.city} - {loc.name}
+                            </div>
+                            <div className="flex items-center mt-1 text-xs text-slate-500">
+                              <MapPin className="w-3 h-3 mr-1 flex-shrink-0 text-brand-red" />
+                              <span className="truncate">{loc.address}</span>
+                            </div>
+                          </div>
+                          {formData.selectedLocation === loc.id && (
+                            <div className="h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
+                              <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
               </div>
+
+              {/* Selezione Slot (Dropdown) */}
               <div>
                 <label htmlFor="selectedSlot" className={`block text-xs font-medium mb-0.5 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
                 <select id="selectedSlot" value={formData.selectedSlot} onChange={handleChange} disabled={!isLocationValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
@@ -301,7 +298,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 4:
+      case 4: // Conferma (Invariato)
         return (
           <div className="space-y-2">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Conferma</h3>
@@ -359,19 +356,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   return (
     <>
       <div className="w-full max-w-md mx-auto pb-10 relative flex items-center justify-center">
-        
-        {/* Left Chevron */}
-        <button 
-          type="button"
-          onClick={handlePrevCard}
-          disabled={currentCard === 0}
-          className={`absolute left-0 z-10 p-1 sm:p-2 -ml-6 sm:-ml-12 text-brand-blue transition-all duration-300 ${currentCard === 0 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'}`}
-          aria-label="Indietro"
-        >
-          <ChevronLeft className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} />
-        </button>
-
-        {/* Card Container */}
+        <button type="button" onClick={handlePrevCard} disabled={currentCard === 0} className={`absolute left-0 z-10 p-1 sm:p-2 -ml-6 sm:-ml-12 text-brand-blue transition-all duration-300 ${currentCard === 0 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'}`} aria-label="Indietro"><ChevronLeft className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} /></button>
         <div className="w-full overflow-hidden px-1">
           <form onKeyDown={handleKeyDown} className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCard * 100}%)` }}>
             {[0, 1, 2, 3, 4].map((index) => (
@@ -385,57 +370,21 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             ))}
           </form>
         </div>
-
-        {/* Right Chevron */}
-        <button 
-          type="button"
-          onClick={handleNextCard}
-          disabled={currentCard === totalCards - 1 || !isCardValid(currentCard)}
-          className={`absolute right-0 z-10 p-1 sm:p-2 -mr-6 sm:-mr-12 text-brand-blue transition-all duration-300 ${currentCard === totalCards - 1 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'} ${!isCardValid(currentCard) ? 'opacity-30 cursor-not-allowed' : ''}`}
-          aria-label="Avanti"
-        >
-          <ChevronRight className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} />
-        </button>
-
+        <button type="button" onClick={handleNextCard} disabled={currentCard === totalCards - 1 || !isCardValid(currentCard)} className={`absolute right-0 z-10 p-1 sm:p-2 -mr-6 sm:-mr-12 text-brand-blue transition-all duration-300 ${currentCard === totalCards - 1 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'} ${!isCardValid(currentCard) ? 'opacity-30 cursor-not-allowed' : ''}`} aria-label="Avanti"><ChevronRight className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} /></button>
       </div>
-
-      {/* Pagination Dots */}
       <div className="flex justify-center gap-2 -mt-6 pb-4">
-        {[0, 1, 2, 3, 4].map((index) => (
-          <div 
-            key={index} 
-            className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`}
-          />
-        ))}
+        {[0, 1, 2, 3, 4].map((index) => (<div key={index} className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`} />))}
       </div>
-
-      {/* Privacy Modal */}
-      <Modal 
-        isOpen={showPrivacyModal} 
-        onClose={() => setShowPrivacyModal(false)}
-        title="Informativa sulla Privacy"
-      >
+      <Modal isOpen={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} title="Informativa sulla Privacy">
         <div className="space-y-4 text-slate-600 font-serif text-sm leading-relaxed">
-          <p>
-            Ai sensi del Regolamento (UE) 2016/679 (GDPR), ti informiamo che i tuoi dati personali saranno trattati da EasyPeasy Labs per le finalità strettamente connesse alla gestione della tua iscrizione all'evento.
-          </p>
+          <p>Ai sensi del Regolamento (UE) 2016/679 (GDPR), ti informiamo che i tuoi dati personali saranno trattati da EasyPeasy Labs per le finalità strettamente connesse alla gestione della tua iscrizione all'evento.</p>
           <h4 className="font-bold text-brand-blue font-serif text-base">1. Finalità del trattamento</h4>
-          <p>
-            I dati raccolti (nome, cognome, email, telefono, dati studente) saranno utilizzati esclusivamente per l'organizzazione dell'evento, l'invio di comunicazioni logistiche e la gestione degli accessi.
-          </p>
+          <p>I dati raccolti (nome, cognome, email, telefono, dati studente) saranno utilizzati esclusivamente per l'organizzazione dell'evento, l'invio di comunicazioni logistiche e la gestione degli accessi.</p>
           <h4 className="font-bold text-brand-blue font-serif text-base">2. Conservazione dei dati</h4>
-          <p>
-            I tuoi dati saranno conservati per il tempo strettamente necessario all'espletamento delle finalità sopra indicate e successivamente cancellati, salvo obblighi di legge.
-          </p>
+          <p>I tuoi dati saranno conservati per il tempo strettamente necessario all'espletamento delle finalità sopra indicate e successivamente cancellati, salvo obblighi di legge.</p>
           <h4 className="font-bold text-brand-blue font-serif text-base">3. I tuoi diritti</h4>
-          <p>
-            Hai il diritto di chiedere al titolare del trattamento l'accesso ai tuoi dati personali, la rettifica, la cancellazione degli stessi o la limitazione del trattamento.
-          </p>
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-4">
-            <p className="italic text-xs text-brand-blue">
-              Cliccando su "Ho capito" confermi di aver letto e compreso l'informativa.
-            </p>
-          </div>
+          <p>Hai il diritto di chiedere al titolare del trattamento l'accesso ai tuoi dati personali, la rettifica, la cancellazione degli stessi o la limitazione del trattamento.</p>
+          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-4"><p className="italic text-xs text-brand-blue">Cliccando su "Ho capito" confermi di aver letto e compreso l'informativa.</p></div>
         </div>
       </Modal>
     </>
