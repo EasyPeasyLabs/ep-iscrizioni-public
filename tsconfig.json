@@ -25,9 +25,9 @@
     "index.tsx",
     "components/**/*",
     "features/**/*",
-    "lib/**/*",
+    "src/lib/**/*",
     "services/**/*",
     "assets/**/*"
-  ],
+, "src/components/ui"  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RegistrationForm } from './src/features/registration/RegistrationForm';
-import { MechaLemon } from './components/ui/MechaLemon';
+import { MechaLemon } from './src/components/ui/MechaLemon';
 
 function App() {
   const [completionCount, setCompletionCount] = useState(0);
