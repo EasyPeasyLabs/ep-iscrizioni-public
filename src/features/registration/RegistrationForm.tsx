@@ -32,7 +32,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     childName: '',
     childAge: '',
     selectedLocation: '',
-    selectedSlot: '' // Salverà l'ID dello slot o la stringa descrittiva
+    selectedSlot: ''
   });
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -48,11 +48,39 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const totalCards = 5;
   const prevCountRef = useRef(0);
 
-  // Validation Logic
+  // --- VALIDAZIONE AGGIORNATA ---
+
+  // 1. Validazione Email (Regex standard)
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  const isEmailValid = emailRegex.test(formData.email.trim());
+
+  // 2. Validazione Telefono (Logica Italiana)
+  const validatePhone = (phone: string): boolean => {
+    // Rimuovi tutto ciò che non è numero o +
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    
+    // Se è vuoto, non è valido
+    if (!cleanPhone) return false;
+
+    // Gestione Prefisso +39
+    let numberPart = cleanPhone;
+    if (cleanPhone.startsWith('+39')) {
+      numberPart = cleanPhone.substring(3);
+    } else if (cleanPhone.startsWith('0039')) {
+      numberPart = cleanPhone.substring(4);
+    }
+
+    // Controllo Lunghezza (9 o 10 cifre per l'Italia)
+    // Mobile: 3xx xxxxxxx (10 cifre)
+    // Fisso: 0xx xxxxxxx (9-10 cifre, es. 02 xxxxxxxx o 080 xxxxxxx)
+    return numberPart.length >= 9 && numberPart.length <= 10;
+  };
+
+  const isPhoneValid = validatePhone(formData.telefono);
+
+  // Altre validazioni semplici
   const isNomeValid = formData.nome.trim().length > 1;
   const isCognomeValid = formData.cognome.trim().length > 1;
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
-  const isPhoneValid = formData.telefono.trim().length > 5;
   const isChildNameValid = formData.childName.trim().length > 1;
   const isChildAgeValid = formData.childAge.trim().length > 0;
   const isLocationValid = formData.selectedLocation !== '';
@@ -97,6 +125,32 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     if (errors[id as keyof FormErrors]) setErrors(prev => ({ ...prev, [id]: undefined }));
   };
 
+  // --- NORMALIZZAZIONE TELEFONO (Auto-fix onBlur) ---
+  const handlePhoneBlur = () => {
+    let phone = formData.telefono.trim();
+    if (!phone) return;
+
+    // Rimuovi spazi e caratteri non validi per la normalizzazione
+    let clean = phone.replace(/[^0-9+]/g, '');
+
+    // Aggiungi +39 se manca
+    if (!clean.startsWith('+') && !clean.startsWith('00')) {
+      clean = '+39' + clean;
+    } else if (clean.startsWith('0039')) {
+      clean = '+39' + clean.substring(4);
+    }
+
+    // Aggiorna lo stato con il numero formattato
+    setFormData(prev => ({ ...prev, telefono: clean }));
+    
+    // Rivalida subito per aggiornare eventuali errori
+    if (!validatePhone(clean)) {
+        setErrors(prev => ({ ...prev, telefono: "Numero non valido (9-10 cifre)" }));
+    } else {
+        setErrors(prev => ({ ...prev, telefono: undefined }));
+    }
+  };
+
   const handleLocationSelect = (locationId: string) => {
     setFormData(prev => ({ ...prev, selectedLocation: locationId, selectedSlot: '' }));
     if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
@@ -112,10 +166,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     let isValid = true;
     if (!isNomeValid) { newErrors.nome = "Il nome è obbligatorio"; isValid = false; }
     if (!isCognomeValid) { newErrors.cognome = "Il cognome è obbligatorio"; isValid = false; }
+    
     if (!formData.email.trim()) { newErrors.email = "L'email è obbligatoria"; isValid = false; } 
-    else if (!isEmailValid) { newErrors.email = "Email non valida"; isValid = false; }
+    else if (!isEmailValid) { newErrors.email = "Email non valida (es. nome@dominio.com)"; isValid = false; }
+    
     if (!formData.telefono.trim()) { newErrors.telefono = "Telefono obbligatorio"; isValid = false; }
-    else if (!isPhoneValid) { newErrors.telefono = "Numero non valido"; isValid = false; }
+    else if (!isPhoneValid) { newErrors.telefono = "Numero non valido (controlla le cifre)"; isValid = false; }
+    
     if (!isChildNameValid) { newErrors.childName = "Nome studente obbligatorio"; isValid = false; }
     if (!isChildAgeValid) { newErrors.childAge = "Età richiesta"; isValid = false; }
     if (!formData.selectedLocation) { newErrors.selectedLocation = "Seleziona una sede"; isValid = false; }
@@ -138,7 +195,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         nome: formData.nome,
         cognome: formData.cognome,
         email: formData.email,
-        telefono: formData.telefono,
+        telefono: formData.telefono, // Sarà già normalizzato col +39 grazie a onBlur
         childName: formData.childName, 
         childAge: formData.childAge,
         selectedLocation: locName,
@@ -166,31 +223,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   // --- LOGICA FILTRO ETÀ ---
   const childAgeNum = parseFloat(formData.childAge) || 0;
   
-  // Filtra gli slot in base all'età
   const filterSlotsByAge = (slots: PublicSlot[]) => {
     return slots.filter(slot => {
-      // Se lo slot non ha limiti di età, è per tutti
       if (!slot.minAge && !slot.maxAge) return true;
-      
       const min = slot.minAge || 0;
       const max = slot.maxAge || 99;
-      
-      // Logica rigorosa richiesta:
-      // 0.9 - 3.9 anni -> Fascia Piccoli
-      // 4 - 6 anni -> Fascia Grandi
-      
-      // Verifichiamo se l'età del bambino rientra nel range dello slot
       return childAgeNum >= min && childAgeNum <= max;
     });
   };
 
-  // Filtra le sedi: mostra solo quelle che hanno almeno uno slot valido per l'età
   const filteredLocations = availableLocations.filter(loc => {
     const validSlots = filterSlotsByAge(loc.slots);
     return validSlots.length > 0;
   });
 
-  // Ottieni gli slot validi per la sede selezionata
   const currentLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
   const currentSlots = currentLocObj ? filterSlotsByAge(currentLocObj.slots) : [];
 
@@ -234,8 +280,31 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
             <div className="grid grid-cols-1 gap-2">
-              <Input id="email" type="email" label="Email" placeholder="mario.rossi@email.com" value={formData.email} onChange={handleChange} error={errors.email} required disabled={!isCognomeValid} className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`} />
-              <Input id="telefono" type="tel" label="Telefono" placeholder="+39 333 1234567" value={formData.telefono} onChange={handleChange} error={errors.telefono} required disabled={!isEmailValid} className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} />
+              <Input 
+                id="email" 
+                type="email" 
+                label="Email" 
+                placeholder="mario.rossi@email.com" 
+                value={formData.email} 
+                onChange={handleChange} 
+                error={errors.email} 
+                required 
+                disabled={!isCognomeValid} 
+                className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`} 
+              />
+              <Input 
+                id="telefono" 
+                type="tel" 
+                label="Telefono" 
+                placeholder="+39 333 1234567" 
+                value={formData.telefono} 
+                onChange={handleChange} 
+                onBlur={handlePhoneBlur} // Aggiunge +39 automaticamente quando esci dal campo
+                error={errors.telefono} 
+                required 
+                disabled={!isEmailValid} 
+                className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} 
+              />
             </div>
           </div>
         );
