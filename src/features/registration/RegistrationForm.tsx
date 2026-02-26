@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react'; // Assicurati di importare MapPin
+import { ChevronLeft, ChevronRight, MapPin, ExternalLink, User, Clock, Calendar } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { sendLeadToGestionale, getLocationsFromGestionale, PublicLocation } from '../../services/gestionaleService';
+import { sendLeadToGestionale, getLocationsFromGestionale, PublicLocation, PublicSlot } from '../../services/gestionaleService';
 
-// ... (Interfacce FormErrors e Props rimangono uguali) ...
 interface FormErrors {
   nome?: string;
   cognome?: string;
@@ -25,7 +24,6 @@ interface RegistrationFormProps {
 }
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
-  // ... (Stati formData, privacy, loading, errors rimangono uguali) ...
   const [formData, setFormData] = useState({
     nome: '',
     cognome: '',
@@ -33,8 +31,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     telefono: '',
     childName: '',
     childAge: '',
-    selectedLocation: '', // Qui salveremo l'ID della sede
-    selectedSlot: ''
+    selectedLocation: '',
+    selectedSlot: '' // Salverà l'ID dello slot o la stringa descrittiva
   });
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -43,7 +41,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // NUOVO STATO: Array di oggetti PublicLocation invece di Record
   const [availableLocations, setAvailableLocations] = useState<PublicLocation[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
 
@@ -51,7 +48,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const totalCards = 5;
   const prevCountRef = useRef(0);
 
-  // ... (Validation Logic Helpers rimangono uguali) ...
+  // Validation Logic
   const isNomeValid = formData.nome.trim().length > 1;
   const isCognomeValid = formData.cognome.trim().length > 1;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
@@ -61,7 +58,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
 
-  // Caricamento Sedi
   useEffect(() => {
     const fetchSlots = async () => {
       try {
@@ -78,7 +74,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     fetchSlots();
   }, []);
 
-  // ... (useEffect per onProgressUpdate rimane uguale) ...
   useEffect(() => {
     let count = 0;
     if (isNomeValid) count++;
@@ -96,24 +91,22 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   }, [formData, privacyAccepted, onProgressUpdate, isNomeValid, isCognomeValid, isEmailValid, isPhoneValid, isChildNameValid, isChildAgeValid, isLocationValid, isSlotValid]);
 
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
     if (errors[id as keyof FormErrors]) setErrors(prev => ({ ...prev, [id]: undefined }));
   };
 
-  // Funzione specifica per la selezione della sede (Card)
   const handleLocationSelect = (locationId: string) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      selectedLocation: locationId, 
-      selectedSlot: '' // Resetta lo slot quando cambia la sede
-    }));
+    setFormData(prev => ({ ...prev, selectedLocation: locationId, selectedSlot: '' }));
     if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
   };
 
-  // ... (Funzione validate() rimane uguale) ...
+  const handleSlotSelect = (slotDescription: string) => {
+    setFormData(prev => ({ ...prev, selectedSlot: slotDescription }));
+    if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
+  };
+
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
     let isValid = true;
@@ -132,14 +125,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     return isValid;
   };
 
-  // ... (Funzione handleSubmit() rimane uguale) ...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGlobalError(null);
     if (!validate()) return;
     setLoading(true);
     try {
-      // Trova il nome leggibile della sede per le note
       const selectedLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
       const locName = selectedLocObj ? `${selectedLocObj.city} - ${selectedLocObj.name}` : formData.selectedLocation;
 
@@ -150,7 +141,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         telefono: formData.telefono,
         childName: formData.childName, 
         childAge: formData.childAge,
-        selectedLocation: locName, // Inviamo il nome leggibile al gestionale
+        selectedLocation: locName,
         selectedSlot: formData.selectedSlot,
         notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
         status: "new",
@@ -164,7 +155,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       } else {
         throw new Error("Errore durante l'invio al gestionale: " + result.error);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Errore durante l'invio:", err);
       setGlobalError("Si è verificato un errore di connessione. Riprova più tardi.");
     } finally {
@@ -172,11 +163,37 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   };
 
-  // Calcola gli slot correnti in base alla sede selezionata
-  const currentLocationObj = availableLocations.find(l => l.id === formData.selectedLocation);
-  const currentSlots = currentLocationObj ? currentLocationObj.slots : [];
+  // --- LOGICA FILTRO ETÀ ---
+  const childAgeNum = parseFloat(formData.childAge) || 0;
+  
+  // Filtra gli slot in base all'età
+  const filterSlotsByAge = (slots: PublicSlot[]) => {
+    return slots.filter(slot => {
+      // Se lo slot non ha limiti di età, è per tutti
+      if (!slot.minAge && !slot.maxAge) return true;
+      
+      const min = slot.minAge || 0;
+      const max = slot.maxAge || 99;
+      
+      // Logica rigorosa richiesta:
+      // 0.9 - 3.9 anni -> Fascia Piccoli
+      // 4 - 6 anni -> Fascia Grandi
+      
+      // Verifichiamo se l'età del bambino rientra nel range dello slot
+      return childAgeNum >= min && childAgeNum <= max;
+    });
+  };
 
-  // ... (Style helpers e isCardValid rimangono uguali) ...
+  // Filtra le sedi: mostra solo quelle che hanno almeno uno slot valido per l'età
+  const filteredLocations = availableLocations.filter(loc => {
+    const validSlots = filterSlotsByAge(loc.slots);
+    return validSlots.length > 0;
+  });
+
+  // Ottieni gli slot validi per la sede selezionata
+  const currentLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
+  const currentSlots = currentLocObj ? filterSlotsByAge(currentLocObj.slots) : [];
+
   const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
   const disabledStyle = "opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200";
   const enabledStyle = "bg-slate-50 focus:bg-white focus:ring-brand-blue focus:border-brand-blue";
@@ -204,8 +221,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   const renderCardContent = (index: number) => {
     switch (index) {
-      case 0: // Dati Genitore (Invariato)
-        return (
+      case 0: return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Dati Genitore</h3>
             <div className="grid grid-cols-1 gap-2">
@@ -214,8 +230,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 1: // Contatti (Invariato)
-        return (
+      case 1: return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
             <div className="grid grid-cols-1 gap-2">
@@ -224,22 +239,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             </div>
           </div>
         );
-      case 2: // Figlio (Invariato)
-        return (
+      case 2: return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Figlio/a</h3>
             <div className="grid grid-cols-1 gap-2">
               <Input id="childName" label="Nome" placeholder="Luca" value={formData.childName} onChange={handleChange} error={errors.childName} required disabled={!isPhoneValid} className={`${inputBaseStyle} ${!isPhoneValid ? disabledStyle : enabledStyle}`} />
               <div>
                 <label htmlFor="childAge" className={`block text-xs font-medium mb-0.5 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>Età <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <input id="childAge" type="number" min="1" max="100" placeholder="es. 8" value={formData.childAge} onChange={handleChange} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
+                <input id="childAge" type="number" step="0.1" min="0" max="18" placeholder="es. 4" value={formData.childAge} onChange={handleChange} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
                 {errors.childAge && <p className="mt-1 text-xs text-red-600">{errors.childAge}</p>}
               </div>
             </div>
           </div>
         );
-      case 3: // Preferenze (MODIFICATO: Card per le Sedi)
-        return (
+      case 3: return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Preferenze</h3>
             <div className="grid grid-cols-1 gap-4">
@@ -250,35 +263,46 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 
                 {isLoadingSlots ? (
                   <div className="text-xs text-slate-500 italic">Caricamento sedi disponibili...</div>
+                ) : filteredLocations.length === 0 ? (
+                  <div className="text-sm text-slate-500 bg-slate-100 p-3 rounded-xl border border-slate-200">
+                    Nessuna sede disponibile per l'età indicata ({childAgeNum} anni). Contattaci per maggiori informazioni.
+                  </div>
                 ) : (
                   <div className={`grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1 ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {availableLocations.map(loc => (
+                    {filteredLocations.map(loc => (
                       <div 
                         key={loc.id}
-                        onClick={() => handleLocationSelect(loc.id)}
                         className={`
-                          relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 group
+                          relative p-3 rounded-xl border-2 transition-all duration-200 group
                           ${formData.selectedLocation === loc.id 
                             ? 'border-brand-blue bg-blue-50 shadow-sm' 
                             : 'border-slate-100 bg-white hover:border-brand-blue/30 hover:bg-slate-50'}
                         `}
                       >
-                        <div className="flex justify-between items-start">
-                          <div>
+                        <div className="cursor-pointer" onClick={() => handleLocationSelect(loc.id)}>
+                          <div className="flex justify-between items-start">
                             <div className={`text-sm font-bold ${formData.selectedLocation === loc.id ? 'text-brand-blue' : 'text-slate-700'}`}>
                               {loc.city} - {loc.name}
                             </div>
-                            <div className="flex items-center mt-1 text-xs text-slate-500">
-                              <MapPin className="w-3 h-3 mr-1 flex-shrink-0 text-brand-red" />
-                              <span className="truncate">{loc.address}</span>
-                            </div>
+                            {formData.selectedLocation === loc.id && (
+                              <div className="h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
+                                <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                              </div>
+                            )}
                           </div>
-                          {formData.selectedLocation === loc.id && (
-                            <div className="h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
-                              <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                            </div>
-                          )}
+                          <div className="text-xs text-slate-500 mt-0.5">{loc.address}</div>
                         </div>
+                        
+                        {/* Link Mappa */}
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address + ' ' + loc.city)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center mt-2 text-[10px] font-bold text-brand-blue hover:text-brand-red hover:underline transition-colors"
+                          onClick={(e) => e.stopPropagation()} // Evita di selezionare la card cliccando sul link
+                        >
+                          vedi su mappa: <MapPin className="w-3 h-3 ml-1" />
+                        </a>
                       </div>
                     ))}
                   </div>
@@ -286,20 +310,74 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
               </div>
 
-              {/* Selezione Slot (Dropdown) */}
+              {/* Selezione Slot a Card (Nuovo Design) */}
               <div>
-                <label htmlFor="selectedSlot" className={`block text-xs font-medium mb-0.5 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <select id="selectedSlot" value={formData.selectedSlot} onChange={handleChange} disabled={!isLocationValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
-                  <option value="" disabled>{formData.selectedLocation ? "Seleziona disponibilità..." : "Prima seleziona una sede"}</option>
-                  {currentSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
-                </select>
+                <label className={`block text-xs font-medium mb-2 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                
+                <div className={`grid grid-cols-1 gap-2 ${!isLocationValid ? 'opacity-50 pointer-events-none' : ''}`}>
+                   {currentSlots.length === 0 && formData.selectedLocation && (
+                     <div className="text-xs text-slate-400 italic">Nessun orario disponibile per questa sede e fascia d'età.</div>
+                   )}
+                   
+                   {currentSlots.map((slot) => {
+                     const slotLabel = `[${slot.type}] ${slot.dayName} ${slot.startTime}-${slot.endTime}`;
+                     const isSelected = formData.selectedSlot === slotLabel;
+                     
+                     return (
+                       <div 
+                         key={slot.id}
+                         onClick={() => handleSlotSelect(slotLabel)}
+                         className={`
+                           relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200
+                           ${isSelected 
+                             ? 'border-brand-blue bg-blue-50 shadow-sm' 
+                             : 'border-slate-100 bg-white hover:border-brand-blue/30 hover:bg-slate-50'}
+                         `}
+                       >
+                         {/* Riga 1: Tipo e Descrizione */}
+                         <div className="flex items-center gap-2 mb-1">
+                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${slot.type === 'SG' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                             {slot.type}
+                           </span>
+                           <span className="text-[10px] text-slate-500 font-medium">
+                             {slot.type === 'LAB' ? 'Laboratorio a cadenza settimanale' : 'Spazio Gioco (solo bimbi)'}
+                           </span>
+                         </div>
+
+                         {/* Riga 2: Dettaglio Temporale */}
+                         <div className="flex items-center gap-1 mb-1.5">
+                           <span className="text-xs text-slate-400 font-medium">
+                             {slot.type === 'LAB' ? 'Ogni' : 'Una tantum'}
+                           </span>
+                           <span className="text-sm font-bold text-slate-800">
+                             {slot.dayName} {slot.startTime} - {slot.endTime}
+                           </span>
+                         </div>
+
+                         {/* Riga 3: Footer Età */}
+                         <div className="flex items-center gap-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 mt-1">
+                           <User className="w-3 h-3 text-slate-400" />
+                           <span>fascia d'età:</span>
+                           <span className="font-bold text-slate-700">
+                             {slot.minAge || 0} - {slot.maxAge || '?'} anni
+                           </span>
+                         </div>
+                         
+                         {isSelected && (
+                            <div className="absolute top-3 right-3 h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
+                              <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                            </div>
+                         )}
+                       </div>
+                     );
+                   })}
+                </div>
                 {errors.selectedSlot && <p className="mt-1 text-xs text-red-600">{errors.selectedSlot}</p>}
               </div>
             </div>
           </div>
         );
-      case 4: // Conferma (Invariato)
-        return (
+      case 4: return (
           <div className="space-y-2">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Conferma</h3>
             <div className={`transition-opacity duration-300 ${!isSlotValid ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
@@ -309,47 +387,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 </div>
                 <div className="text-xs">
                   <label htmlFor="privacy" className="font-medium text-slate-700 cursor-pointer font-sans">Consenso Privacy <span className="text-brand-red">*</span></label>
-                  <p className="text-slate-500 text-[10px] mt-0.5 leading-tight font-sans">
-                    Accetto il trattamento dei miei dati personali secondo la 
-                    <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button> 
-                    ai fini della gestione dell'evento.
-                  </p>
+                  <p className="text-slate-500 text-[10px] mt-0.5 leading-tight font-sans">Accetto il trattamento dei miei dati personali secondo la <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button> ai fini della gestione dell'evento.</p>
                 </div>
               </div>
               {errors.privacy && <p className="mt-1 text-xs text-brand-red pl-6 font-medium font-sans">{errors.privacy}</p>}
             </div>
-            
-            {globalError && (
-              <div className="p-2 rounded-xl bg-red-50 border border-red-100 animate-pulse">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-2">
-                    <h3 className="text-xs font-medium text-brand-red font-serif">Errore</h3>
-                    <div className="mt-0.5 text-xs text-red-700 font-sans">
-                      <p>{globalError}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
+            {globalError && (<div className="p-2 rounded-xl bg-red-50 border border-red-100 animate-pulse"><div className="flex"><div className="flex-shrink-0"><svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg></div><div className="ml-2"><h3 className="text-xs font-medium text-brand-red font-serif">Errore</h3><div className="mt-0.5 text-xs text-red-700 font-sans"><p>{globalError}</p></div></div></div></div>)}
             <div className={`pt-1 transition-all duration-300 ${!privacyAccepted ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-              <Button type="button" onClick={handleSubmit} isLoading={loading} disabled={!privacyAccepted} className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 font-sans text-base">
-                INVIA
-              </Button>
-              <p className="text-center text-[10px] text-slate-400 mt-1 flex items-center justify-center font-sans">
-                <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
-                I dati verranno salvati in modo sicuro.
-              </p>
+              <Button type="button" onClick={handleSubmit} isLoading={loading} disabled={!privacyAccepted} className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 font-sans text-base">INVIA</Button>
+              <p className="text-center text-[10px] text-slate-400 mt-1 flex items-center justify-center font-sans"><svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>I dati verranno salvati in modo sicuro.</p>
             </div>
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 

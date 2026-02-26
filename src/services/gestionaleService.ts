@@ -26,19 +26,34 @@ export interface LeadData {
   notes?: string;
 }
 
+// Nuova interfaccia per lo Slot Pubblico Strutturato
+export interface PublicSlot {
+  id: string; // Identificativo univoco per la selezione
+  type: 'LAB' | 'SG';
+  dayOfWeek: number;
+  dayName: string;
+  startTime: string;
+  endTime: string;
+  minAge?: number;
+  maxAge?: number;
+}
+
 // Nuova interfaccia per le Sedi Pubbliche
 export interface PublicLocation {
-  id: string;        // ID univoco (es. "Bari-Poggiofranco")
-  name: string;      // Nome Sede
-  city: string;      // Città
-  address: string;   // Indirizzo (Via...)
-  slots: string[];   // Lista orari formattati
+  id: string;
+  name: string;
+  city: string;
+  address: string;
+  slots: PublicSlot[];
 }
 
 export const sendLeadToGestionale = async (data: LeadData) => {
   try {
+    // Sanitizzazione finale per evitare riferimenti circolari
+    const cleanData = JSON.parse(JSON.stringify(data));
+    
     const docRef = await addDoc(collection(gestionaleDb, "incoming_leads"), {
-      ...data,
+      ...cleanData,
       source: "projectB_site",
       createdAt: new Date().toISOString(),
       status: "pending",
@@ -47,19 +62,18 @@ export const sendLeadToGestionale = async (data: LeadData) => {
       cognome: data.cognome
     });
     return { success: true, id: docRef.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Errore invio lead:", error);
-    return { success: false, error };
+    // Restituisci solo il messaggio di errore stringa, non l'oggetto errore completo (che potrebbe essere circolare)
+    return { success: false, error: error.message || "Errore sconosciuto" };
   }
 };
 
-/**
- * Recupera le sedi pubbliche con indirizzi e slot filtrati
- */
 export const getLocationsFromGestionale = async (): Promise<PublicLocation[]> => {
   try {
     const suppliersSnap = await getDocs(collection(gestionaleDb, "suppliers"));
     const locationsList: PublicLocation[] = [];
+    const daysMap = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 
     suppliersSnap.forEach(doc => {
       const data = doc.data();
@@ -70,25 +84,26 @@ export const getLocationsFromGestionale = async (): Promise<PublicLocation[]> =>
           if (loc.closedAt) return;
           if (loc.isPubliclyVisible === false) return;
 
-          // Filtra e formatta gli slot
-          const slots = (loc.availability || [])
+          // Mappa gli slot in oggetti strutturati
+          const slots: PublicSlot[] = (loc.availability || [])
             .filter((slot: any) => slot.isPubliclyVisible !== false)
-            .map((slot: any) => {
-              const days = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-              let label = `[${slot.type || 'LAB'}] ${days[slot.dayOfWeek]} ${slot.startTime} - ${slot.endTime}`;
-              if (slot.minAge || slot.maxAge) {
-                label += ` (${slot.minAge || 0}-${slot.maxAge || '?'} anni)`;
-              }
-              return label;
-            });
+            .map((slot: any, index: number) => ({
+              id: `${loc.id || loc.name}-slot-${index}`,
+              type: slot.type || 'LAB',
+              dayOfWeek: slot.dayOfWeek,
+              dayName: daysMap[slot.dayOfWeek],
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              minAge: slot.minAge ? Number(slot.minAge) : undefined,
+              maxAge: slot.maxAge ? Number(slot.maxAge) : undefined
+            }));
 
           if (slots.length > 0) {
-            // Crea l'oggetto PublicLocation
             locationsList.push({
               id: loc.id || `${data.companyName}-${loc.name}`.replace(/\s+/g, '-'),
               name: loc.name,
               city: loc.city || data.city || '',
-              address: loc.address || data.address || '', // Recupera l'indirizzo!
+              address: loc.address || data.address || '',
               slots: slots
             });
           }
