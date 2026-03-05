@@ -1,511 +1,517 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, User } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { Input } from '../../components/ui/Input';
-import { Card, CardContent } from '../../components/ui/Card';
-import { Modal } from '../../components/ui/Modal';
-import { sendLeadToGestionale, getLocationsFromGestionale, PublicLocation, PublicSlot } from '../../services/gestionaleService';
+import { Button } from '../../components/ui/Button';
+import { LemonMascot } from '../../components/illustrations/LemonMascot';
 
-interface FormErrors {
-  nome?: string;
-  cognome?: string;
-  email?: string;
-  telefono?: string;
-  childName?: string;
-  childAge?: string;
-  selectedLocation?: string;
-  selectedSlot?: string;
-  privacy?: string;
+// -- TYPES --
+interface Slot {
+  giorno: string;
+  orario: string;
+  postiRimanenti: number;
+  esaurito: boolean;
+  targetAge?: string[]; // e.g. ["3-5", "6-10"]
 }
 
-interface RegistrationFormProps {
-  onProgressUpdate?: (count: number) => void;
-  onSuccess?: () => void;
+interface Location {
+  sedeId: string;
+  nomeSede: string;
+  indirizzo: string;
+  slot: Slot[];
 }
 
-export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
-  const [formData, setFormData] = useState({
-    nome: '',
-    cognome: '',
-    email: '',
-    telefono: '',
-    childName: '',
-    childAge: '',
-    selectedLocation: '',
-    selectedSlot: ''
-  });
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
+// -- HELPERS --
+const calculateAge = (dob: string): number => {
+  if (!dob) return 0;
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
 
-  const [availableLocations, setAvailableLocations] = useState<PublicLocation[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
-
-  const [currentCard, setCurrentCard] = useState(0);
-  const totalCards = 5;
-  const prevCountRef = useRef(0);
-
-  // --- VALIDAZIONE AGGIORNATA ---
-
-  // 1. Validazione Email (Regex standard)
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  const isEmailValid = emailRegex.test(formData.email.trim());
-
-  // 2. Validazione Telefono (Logica Italiana)
-  const validatePhone = (phone: string): boolean => {
-    // Rimuovi tutto ciò che non è numero o +
-    const cleanPhone = phone.replace(/[^0-9+]/g, '');
-    
-    // Se è vuoto, non è valido
-    if (!cleanPhone) return false;
-
-    // Gestione Prefisso +39
-    let numberPart = cleanPhone;
-    if (cleanPhone.startsWith('+39')) {
-      numberPart = cleanPhone.substring(3);
-    } else if (cleanPhone.startsWith('0039')) {
-      numberPart = cleanPhone.substring(4);
+const isAgeCompatible = (age: number, targetAges?: string[]): boolean => {
+  if (!targetAges || targetAges.length === 0) return true; // If no target age specified, assume compatible
+  return targetAges.some(range => {
+    if (range.includes('+')) {
+      const min = parseInt(range.replace('+', ''), 10);
+      return age >= min;
     }
+    const parts = range.split('-');
+    if (parts.length === 2) {
+      const min = parseInt(parts[0], 10);
+      const max = parseInt(parts[1], 10);
+      return age >= min && age <= max;
+    }
+    return parseInt(range, 10) === age;
+  });
+};
 
-    // Controllo Lunghezza (9 o 10 cifre per l'Italia)
-    // Mobile: 3xx xxxxxxx (10 cifre)
-    // Fisso: 0xx xxxxxxx (9-10 cifre, es. 02 xxxxxxxx o 080 xxxxxxx)
-    return numberPart.length >= 9 && numberPart.length <= 10;
-  };
+const dayMap: { [key: string]: number } = {
+  'Domenica': 0, 'Lunedì': 1, 'Martedì': 2, 'Mercoledì': 3, 'Giovedì': 4, 'Venerdì': 5, 'Sabato': 6
+};
 
-  const isPhoneValid = validatePhone(formData.telefono);
+const getNextDateString = (dayName: string): string | null => {
+  const targetDay = dayMap[dayName];
+  if (targetDay === undefined) return null;
+  
+  const date = new Date();
+  const currentDay = date.getDay();
+  let daysUntil = targetDay - currentDay;
+  
+  // If today is the day, assume next week (or today if logic permits, usually next week for booking)
+  // Let's assume next occurrence (if today is Monday, next Monday is +7)
+  if (daysUntil <= 0) {
+    daysUntil += 7;
+  }
+  
+  date.setDate(date.getDate() + daysUntil);
+  return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+};
 
-  // Altre validazioni semplici
-  const isNomeValid = formData.nome.trim().length > 1;
-  const isCognomeValid = formData.cognome.trim().length > 1;
-  const isChildNameValid = formData.childName.trim().length > 1;
-  const isChildAgeValid = formData.childAge.trim().length > 0;
-  const isLocationValid = formData.selectedLocation !== '';
-  const isSlotValid = formData.selectedSlot !== '';
+interface RegistrationData {
+  // Step 0: Genitore
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  
+  // Step 1: Figlio
+  childName: string;
+  childDob: string;
 
+  // Step 2: Sede
+  locationId: string;
+  slotTime: string;
+  
+  // Metadata
+  courseType: string;
+}
+
+const INITIAL_DATA: RegistrationData = {
+  parentFirstName: '',
+  parentLastName: '',
+  parentEmail: '',
+  parentPhone: '+39 ',
+  childName: '',
+  childDob: '',
+  locationId: '',
+  slotTime: '',
+  courseType: 'standard'
+};
+
+const GESTIONALE_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getAvailableSlots";
+const BRIDGE_SECURE_KEY = "EP_V1_BRIDGE_SECURE_KEY_8842_XY";
+
+export const RegistrationForm: React.FC = () => {
+  const [step, setStep] = useState<number>(0);
+  // NEW: Sub-step for Step 0 (0: Name/Surname, 1: Email/Phone)
+  const [stepZeroSub, setStepZeroSub] = useState<0 | 1>(0);
+
+  const [data, setData] = useState<RegistrationData>(INITIAL_DATA);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  
+  // Dynamic locations state
+  const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+
+  // Fetch available slots from Gestionale API
   useEffect(() => {
     const fetchSlots = async () => {
+      setIsLoadingLocations(true);
+      console.log("[RegistrationForm] Avvio recupero slot da:", GESTIONALE_SLOTS_URL);
       try {
-        setIsLoadingSlots(true);
-        const locations = await getLocationsFromGestionale();
+        const response = await fetch(GESTIONALE_SLOTS_URL, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`,
+            "Accept": "application/json"
+          }
+        });
+        
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error(`[RegistrationForm] Errore API (${response.status}):`, errorBody);
+          throw new Error(`Impossibile recuperare le disponibilità (Status ${response.status}).`);
+        }
+        
+        const locations: Location[] = await response.json();
+        console.log("[RegistrationForm] Sedi caricate con successo:", locations.length);
         setAvailableLocations(locations);
-      } catch (err) {
-        console.error("Errore caricamento:", err);
-        setGlobalError("Impossibile caricare le disponibilità.");
+      } catch (error: any) {
+        console.error("[RegistrationForm] Errore durante il fetch degli slot:", error);
+        
+        // Messaggio specifico per errori di rete (CORS o connettività)
+        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+          setErrorMessage("Errore di connessione (CORS). Verifica la configurazione del server gestionale.");
+        } else {
+          setErrorMessage(error.message || "Errore nel caricamento delle sedi. Riprova più tardi.");
+        }
       } finally {
-        setIsLoadingSlots(false);
+        setIsLoadingLocations(false);
       }
     };
+
     fetchSlots();
   }, []);
 
+  // Auto-redirect logic for Step 3
   useEffect(() => {
-    let count = 0;
-    if (isNomeValid) count++;
-    if (isCognomeValid) count++;
-    if (isEmailValid) count++;
-    if (isPhoneValid) count++;
-    if (isChildNameValid) count++;
-    if (isChildAgeValid) count++;
-    if (isLocationValid && isSlotValid) count++;
-    if (privacyAccepted) count++;
-    
-    if (onProgressUpdate && count !== prevCountRef.current) {
-      onProgressUpdate(count);
-      prevCountRef.current = count;
+    let timeout: ReturnType<typeof setTimeout>;
+    if (step === 3) {
+      timeout = setTimeout(() => {
+        setStep(0);
+        setStepZeroSub(0); // Reset sub-step
+        setData(INITIAL_DATA);
+        setIsDemoMode(false);
+      }, 5000);
     }
-  }, [formData, privacyAccepted, onProgressUpdate, isNomeValid, isCognomeValid, isEmailValid, isPhoneValid, isChildNameValid, isChildAgeValid, isLocationValid, isSlotValid]);
+    return () => clearTimeout(timeout);
+  }, [step]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { id, value } = e.target;
-    setFormData(prev => ({ ...prev, [id]: value }));
-    if (errors[id as keyof FormErrors]) setErrors(prev => ({ ...prev, [id]: undefined }));
+    const { name, value } = e.target;
+    setData(prev => ({ ...prev, [name]: value }));
+    // Clear error message when user types to improve UX
+    if (errorMessage) setErrorMessage('');
   };
 
-  // --- NORMALIZZAZIONE TELEFONO (Auto-fix onBlur) ---
-  const handlePhoneBlur = () => {
-    let phone = formData.telefono.trim();
-    if (!phone) return;
-
-    // Rimuovi spazi e caratteri non validi per la normalizzazione
-    let clean = phone.replace(/[^0-9+]/g, '');
-
-    // Aggiungi +39 se manca
-    if (!clean.startsWith('+') && !clean.startsWith('00')) {
-      clean = '+39' + clean;
-    } else if (clean.startsWith('0039')) {
-      clean = '+39' + clean.substring(4);
-    }
-
-    // Aggiorna lo stato con il numero formattato
-    setFormData(prev => ({ ...prev, telefono: clean }));
-    
-    // Rivalida subito per aggiornare eventuali errori
-    if (!validatePhone(clean)) {
-        setErrors(prev => ({ ...prev, telefono: "Numero non valido (9-10 cifre)" }));
-    } else {
-        setErrors(prev => ({ ...prev, telefono: undefined }));
+  // Updated validation to handle sub-steps
+  const validateCurrentState = (): boolean => {
+    switch (step) {
+      case 0:
+        if (stepZeroSub === 0) {
+          return !!data.parentFirstName && !!data.parentLastName;
+        } else {
+          return !!data.parentEmail && data.parentPhone.length > 4;
+        }
+      case 1:
+        return !!data.childName && !!data.childDob;
+      case 2:
+        return !!data.locationId && !!data.slotTime;
+      default:
+        return false;
     }
   };
 
-  const handleLocationSelect = (locationId: string) => {
-    setFormData(prev => ({ ...prev, selectedLocation: locationId, selectedSlot: '' }));
-    if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
-  };
+  const handleNext = () => {
+    if (!validateCurrentState()) {
+      setErrorMessage("Per favore compila tutti i campi obbligatori.");
+      return;
+    }
 
-  const handleSlotSelect = (slotDescription: string) => {
-    setFormData(prev => ({ ...prev, selectedSlot: slotDescription }));
-    if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
-  };
+    // Clear error if validation passes
+    setErrorMessage('');
 
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {};
-    let isValid = true;
-    if (!isNomeValid) { newErrors.nome = "Il nome è obbligatorio"; isValid = false; }
-    if (!isCognomeValid) { newErrors.cognome = "Il cognome è obbligatorio"; isValid = false; }
-    
-    if (!formData.email.trim()) { newErrors.email = "L'email è obbligatoria"; isValid = false; } 
-    else if (!isEmailValid) { newErrors.email = "Email non valida (es. nome@dominio.com)"; isValid = false; }
-    
-    if (!formData.telefono.trim()) { newErrors.telefono = "Telefono obbligatorio"; isValid = false; }
-    else if (!isPhoneValid) { newErrors.telefono = "Numero non valido (controlla le cifre)"; isValid = false; }
-    
-    if (!isChildNameValid) { newErrors.childName = "Nome studente obbligatorio"; isValid = false; }
-    if (!isChildAgeValid) { newErrors.childAge = "Età richiesta"; isValid = false; }
-    if (!formData.selectedLocation) { newErrors.selectedLocation = "Seleziona una sede"; isValid = false; }
-    if (!formData.selectedSlot) { newErrors.selectedSlot = "Seleziona un orario"; isValid = false; }
-    if (!privacyAccepted) { newErrors.privacy = "Consenso obbligatorio"; isValid = false; }
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setGlobalError(null);
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      const selectedLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
-      const locName = selectedLocObj ? `${selectedLocObj.city} - ${selectedLocObj.name}` : formData.selectedLocation;
-
-      const leadData = {
-        nome: formData.nome,
-        cognome: formData.cognome,
-        email: formData.email,
-        telefono: formData.telefono, // Sarà già normalizzato col +39 grazie a onBlur
-        childName: formData.childName, 
-        childAge: formData.childAge,
-        selectedLocation: locName,
-        selectedSlot: formData.selectedSlot,
-        notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
-        status: "new",
-        privacyConsent: true,
-        source: "ep_public_web",
-        userAgent: navigator.userAgent
-      };
-      const result = await sendLeadToGestionale(leadData);
-      if (result.success) {
-        if (onSuccess) onSuccess();
+    if (step === 0) {
+      if (stepZeroSub === 0) {
+        // Move to Step 0 Part B
+        setStepZeroSub(1);
       } else {
-        throw new Error("Errore durante l'invio al gestionale: " + result.error);
+        // Move to Step 1
+        setStep(prev => prev + 1);
       }
-    } catch (err: any) {
-      console.error("Errore durante l'invio:", err);
-      setGlobalError("Si è verificato un errore di connessione. Riprova più tardi.");
-    } finally {
-      setLoading(false);
+    } else {
+      // Normal progression
+      setStep(prev => prev + 1);
     }
   };
 
-  // --- LOGICA FILTRO ETÀ ---
-  const childAgeNum = parseFloat(formData.childAge) || 0;
-  
-  const filterSlotsByAge = (slots: PublicSlot[]) => {
-    return slots.filter(slot => {
-      if (!slot.minAge && !slot.maxAge) return true;
-      const min = slot.minAge || 0;
-      const max = slot.maxAge || 99;
-      return childAgeNum >= min && childAgeNum <= max;
-    });
-  };
+  const handleBack = () => {
+    setErrorMessage(''); // Clear errors when moving back
+    if (step === 0 && stepZeroSub === 1) {
+      // Go back to Step 0 Part A
+      setStepZeroSub(0);
+      return;
+    }
 
-  const filteredLocations = availableLocations.filter(loc => {
-    const validSlots = filterSlotsByAge(loc.slots);
-    return validSlots.length > 0;
-  });
-
-  const currentLocObj = availableLocations.find(l => l.id === formData.selectedLocation);
-  const currentSlots = currentLocObj ? filterSlotsByAge(currentLocObj.slots) : [];
-
-  const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
-  const disabledStyle = "opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200";
-  const enabledStyle = "bg-slate-50 focus:bg-white focus:ring-brand-blue focus:border-brand-blue";
-
-  const isCardValid = (index: number) => {
-    switch (index) {
-      case 0: return isNomeValid && isCognomeValid;
-      case 1: return isEmailValid && isPhoneValid;
-      case 2: return isChildNameValid && isChildAgeValid;
-      case 3: return isLocationValid && isSlotValid;
-      case 4: return privacyAccepted;
-      default: return false;
+    if (step > 0) {
+      setStep(prev => prev - 1);
+      // If we go back to step 0, we usually want to see the last part (Part B)
+      if (step === 1) {
+        setStepZeroSub(1);
+      }
     }
   };
 
-  const handleNextCard = () => { if (currentCard < totalCards - 1 && isCardValid(currentCard)) setCurrentCard(prev => prev + 1); };
-  const handlePrevCard = () => { if (currentCard > 0) setCurrentCard(prev => prev - 1); };
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (currentCard < totalCards - 1) handleNextCard();
-      else if (isCardValid(currentCard)) handleSubmit(e as any);
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      // Attempt to save to Firestore in the raw_registrations collection
+      await addDoc(collection(db, 'raw_registrations'), {
+        ...data,
+        syncStatus: 'pending_sync', // Initial status for the Cloud Function
+        createdAt: serverTimestamp(),
+        source: 'public_portal_v1'
+      });
+      setStep(3);
+    } catch (error: any) {
+      console.error("Firestore Error:", error);
+      setErrorMessage("Errore di connessione. Riprova tra poco.");
+      setIsSubmitting(false);
     }
   };
 
-  const renderCardContent = (index: number) => {
-    switch (index) {
-      case 0: return (
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Dati Genitore</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Input id="nome" label="Nome" placeholder="Mario" value={formData.nome} onChange={handleChange} error={errors.nome} required className={`${inputBaseStyle} ${enabledStyle}`} />
-              <Input id="cognome" label="Cognome" placeholder="Rossi" value={formData.cognome} onChange={handleChange} error={errors.cognome} required disabled={!isNomeValid} className={`${inputBaseStyle} ${!isNomeValid ? disabledStyle : enabledStyle}`} />
+  // Helper to render content for each step
+  const renderStepContent = (stepIndex: number) => {
+    switch (stepIndex) {
+      case 0:
+        return (
+          <div className="space-y-4">
+            <div className="text-center mb-2">
+              <h2 className="text-lg font-bold text-gray-800">Dati Genitore</h2>
             </div>
-          </div>
-        );
-      case 1: return (
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Input 
-                id="email" 
-                type="email" 
-                label="Email" 
-                placeholder="mario.rossi@email.com" 
-                value={formData.email} 
-                onChange={handleChange} 
-                error={errors.email} 
-                required 
-                disabled={!isCognomeValid} 
-                className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`} 
-              />
-              <Input 
-                id="telefono" 
-                type="tel" 
-                label="Telefono" 
-                placeholder="+39 333 1234567" 
-                value={formData.telefono} 
-                onChange={handleChange} 
-                onBlur={handlePhoneBlur} // Aggiunge +39 automaticamente quando esci dal campo
-                error={errors.telefono} 
-                required 
-                disabled={!isEmailValid} 
-                className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} 
-              />
-            </div>
-          </div>
-        );
-      case 2: return (
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Figlio/a</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Input id="childName" label="Nome" placeholder="Luca" value={formData.childName} onChange={handleChange} error={errors.childName} required disabled={!isPhoneValid} className={`${inputBaseStyle} ${!isPhoneValid ? disabledStyle : enabledStyle}`} />
-              <div>
-                <label htmlFor="childAge" className={`block text-xs font-medium mb-0.5 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>Età <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <input id="childAge" type="number" step="0.1" min="0" max="18" placeholder="es. 4" value={formData.childAge} onChange={handleChange} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
-                {errors.childAge && <p className="mt-1 text-xs text-red-600">{errors.childAge}</p>}
+            
+            {/* Conditional Rendering for Sub-Steps */}
+            {stepZeroSub === 0 ? (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <Input
+                  label="Nome"
+                  name="parentFirstName"
+                  value={data.parentFirstName}
+                  onChange={handleChange}
+                  placeholder="Mario"
+                  autoFocus
+                />
+                <Input
+                  label="Cognome"
+                  name="parentLastName"
+                  value={data.parentLastName}
+                  onChange={handleChange}
+                  placeholder="Rossi"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <Input
+                  label="Email"
+                  name="parentEmail"
+                  type="email"
+                  value={data.parentEmail}
+                  onChange={handleChange}
+                  placeholder="mario@example.com"
+                  autoFocus
+                />
+                <Input
+                  label="Telefono"
+                  name="parentPhone"
+                  type="tel"
+                  value={data.parentPhone}
+                  onChange={handleChange}
+                  placeholder="+39 333 1234567"
+                />
+              </div>
+            )}
           </div>
         );
-      case 3: return (
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Preferenze</h3>
-            <div className="grid grid-cols-1 gap-4">
-              
-              {/* Selezione Sede a Card */}
-              <div>
-                <label className={`block text-xs font-medium mb-2 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                
-                {isLoadingSlots ? (
-                  <div className="text-xs text-slate-500 italic">Caricamento sedi disponibili...</div>
-                ) : filteredLocations.length === 0 ? (
-                  <div className="text-sm text-slate-500 bg-slate-100 p-3 rounded-xl border border-slate-200">
-                    Nessuna sede disponibile per l'età indicata ({childAgeNum} anni). Contattaci per maggiori informazioni.
-                  </div>
-                ) : (
-                  <div className={`grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1 ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {filteredLocations.map(loc => (
-                      <div 
-                        key={loc.id}
-                        className={`
-                          relative p-3 rounded-xl border-2 transition-all duration-200 group
-                          ${formData.selectedLocation === loc.id 
-                            ? 'border-brand-blue bg-blue-50 shadow-sm' 
-                            : 'border-slate-100 bg-white hover:border-brand-blue/30 hover:bg-slate-50'}
-                        `}
-                      >
-                        <div className="cursor-pointer" onClick={() => handleLocationSelect(loc.id)}>
-                          <div className="flex justify-between items-start">
-                            <div className={`text-sm font-bold ${formData.selectedLocation === loc.id ? 'text-brand-blue' : 'text-slate-700'}`}>
-                              {loc.city} - {loc.name}
-                            </div>
-                            {formData.selectedLocation === loc.id && (
-                              <div className="h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
-                                <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{loc.address}</div>
-                        </div>
-                        
-                        {/* Link Mappa */}
-                        <a 
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address + ' ' + loc.city)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center mt-2 text-[10px] font-bold text-brand-blue hover:text-brand-red hover:underline transition-colors"
-                          onClick={(e) => e.stopPropagation()} // Evita di selezionare la card cliccando sul link
-                        >
-                          vedi su mappa: <MapPin className="w-3 h-3 ml-1" />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
-              </div>
+      case 1:
+        return (
+          <div className="space-y-4">
+            <div className="text-center mb-2">
+              <h2 className="text-lg font-bold text-gray-800">Dati Figlio/a</h2>
+            </div>
+            <Input
+              label="Nome e Cognome Figlio"
+              name="childName"
+              value={data.childName}
+              onChange={handleChange}
+              placeholder="Luigi Rossi"
+            />
+            <Input
+              label="Data di Nascita"
+              name="childDob"
+              type="date"
+              value={data.childDob}
+              onChange={handleChange}
+            />
+          </div>
+        );
+      case 2:
+        const childAge = calculateAge(data.childDob);
+        
+        // Filter locations that have at least one slot compatible with the child's age
+        const filteredLocations = availableLocations.filter(loc => 
+          loc.slot.some(s => isAgeCompatible(childAge, s.targetAge))
+        );
 
-              {/* Selezione Slot a Card (Nuovo Design) */}
-              <div>
-                <label className={`block text-xs font-medium mb-2 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                
-                <div className={`grid grid-cols-1 gap-2 ${!isLocationValid ? 'opacity-50 pointer-events-none' : ''}`}>
-                   {currentSlots.length === 0 && formData.selectedLocation && (
-                     <div className="text-xs text-slate-400 italic">Nessun orario disponibile per questa sede e fascia d'età.</div>
-                   )}
-                   
-                   {currentSlots.map((slot) => {
-                     const slotLabel = `[${slot.type}] ${slot.dayName} ${slot.startTime}-${slot.endTime}`;
-                     const isSelected = formData.selectedSlot === slotLabel;
-                     
-                     return (
-                       <div 
-                         key={slot.id}
-                         onClick={() => handleSlotSelect(slotLabel)}
-                         className={`
-                           relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200
-                           ${isSelected 
-                             ? 'border-brand-blue bg-blue-50 shadow-sm' 
-                             : 'border-slate-100 bg-white hover:border-brand-blue/30 hover:bg-slate-50'}
-                         `}
-                       >
-                         {/* Riga 1: Tipo e Descrizione */}
-                         <div className="flex items-center gap-2 mb-1">
-                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${slot.type === 'SG' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                             {slot.type}
-                           </span>
-                           <span className="text-[10px] text-slate-500 font-medium">
-                             {slot.type === 'LAB' ? 'Laboratorio a cadenza settimanale' : 'Spazio Gioco (solo bimbi)'}
-                           </span>
-                         </div>
+        const selectedLocation = filteredLocations.find(l => l.sedeId === data.locationId);
+        
+        // Filter slots for the selected location based on age
+        const filteredSlots = selectedLocation 
+          ? selectedLocation.slot.filter(s => isAgeCompatible(childAge, s.targetAge))
+          : [];
 
-                         {/* Riga 2: Dettaglio Temporale */}
-                         <div className="flex items-center gap-1 mb-1.5">
-                           <span className="text-xs text-slate-400 font-medium">
-                             {slot.type === 'LAB' ? 'Ogni' : 'Una tantum'}
-                           </span>
-                           <span className="text-sm font-bold text-slate-800">
-                             {slot.dayName} {slot.startTime} - {slot.endTime}
-                           </span>
-                         </div>
+        // Calculate first available date if a slot is selected
+        let firstAvailableDate: string | null = null;
+        if (data.slotTime) {
+          const [day] = data.slotTime.split(' '); // Assumes format "Lunedì 17:00"
+          firstAvailableDate = getNextDateString(day);
+        }
 
-                         {/* Riga 3: Footer Età */}
-                         <div className="flex items-center gap-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 mt-1">
-                           <User className="w-3 h-3 text-slate-400" />
-                           <span>fascia d'età:</span>
-                           <span className="font-bold text-slate-700">
-                             {slot.minAge || 0} - {slot.maxAge || '?'} anni
-                           </span>
-                         </div>
-                         
-                         {isSelected && (
-                            <div className="absolute top-3 right-3 h-4 w-4 rounded-full bg-brand-blue flex items-center justify-center">
-                              <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                            </div>
-                         )}
-                       </div>
-                     );
-                   })}
-                </div>
-                {errors.selectedSlot && <p className="mt-1 text-xs text-red-600">{errors.selectedSlot}</p>}
-              </div>
+        return (
+          <div className="space-y-4">
+             <div className="text-center mb-2">
+              <h2 className="text-lg font-bold text-gray-800">Scegli Sede e Orario</h2>
+              {childAge > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Mostrando corsi per età: <span className="font-semibold">{childAge} anni</span>
+                </p>
+              )}
             </div>
+            
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-sm font-medium text-gray-700">Sede</label>
+              <select
+                name="locationId"
+                value={data.locationId}
+                onChange={(e) => {
+                  // Reset slot time when location changes
+                  setData(prev => ({ ...prev, locationId: e.target.value, slotTime: '' }));
+                }}
+                disabled={isLoadingLocations}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+              >
+                <option value="">
+                  {isLoadingLocations 
+                    ? "Caricamento sedi..." 
+                    : filteredLocations.length === 0 
+                      ? "Nessuna sede disponibile per questa età" 
+                      : "Seleziona una sede"}
+                </option>
+                {filteredLocations.map(loc => (
+                  <option key={loc.sedeId} value={loc.sedeId}>
+                    {loc.nomeSede}{loc.indirizzo ? ` - ${loc.indirizzo}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-sm font-medium text-gray-700">Orario Preferito</label>
+              <select
+                name="slotTime"
+                value={data.slotTime}
+                onChange={handleChange}
+                disabled={!data.locationId || isLoadingLocations || filteredSlots.length === 0}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+              >
+                <option value="">
+                  {filteredSlots.length === 0 && data.locationId
+                    ? "Nessun orario disponibile per questa età"
+                    : "Seleziona orario"}
+                </option>
+                {filteredSlots.map(s => (
+                  <option 
+                    key={`${s.giorno}-${s.orario}`} 
+                    value={`${s.giorno} ${s.orario}`}
+                    disabled={s.esaurito}
+                  >
+                    {s.giorno} {s.orario} {s.esaurito ? '(ESAURITO)' : `(${s.postiRimanenti} posti)`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Display First Available Date */}
+            {firstAvailableDate && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-md animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm text-blue-800 text-center">
+                  <span className="block text-xs text-blue-500 uppercase tracking-wider font-semibold mb-1">Prima Lezione Disponibile</span>
+                  <span className="font-bold text-lg capitalize">{firstAvailableDate}</span>
+                </p>
+              </div>
+            )}
           </div>
         );
-      case 4: return (
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Conferma</h3>
-            <div className={`transition-opacity duration-300 ${!isSlotValid ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-              <div className="flex items-start gap-2">
-                <div className="flex items-center h-5">
-                  <input id="privacy" name="privacy" type="checkbox" checked={privacyAccepted} disabled={!isSlotValid} onChange={(e) => { setPrivacyAccepted(e.target.checked); if (e.target.checked && errors.privacy) { setErrors(prev => ({ ...prev, privacy: undefined })); } }} className={`h-4 w-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue transition duration-150 ease-in-out cursor-pointer ${errors.privacy ? 'border-red-300 ring-1 ring-red-300' : ''}`} />
-                </div>
-                <div className="text-xs">
-                  <label htmlFor="privacy" className="font-medium text-slate-700 cursor-pointer font-sans">Consenso Privacy <span className="text-brand-red">*</span></label>
-                  <p className="text-slate-500 text-[10px] mt-0.5 leading-tight font-sans">Accetto il trattamento dei miei dati personali secondo la <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button> ai fini della gestione dell'evento.</p>
-                </div>
-              </div>
-              {errors.privacy && <p className="mt-1 text-xs text-brand-red pl-6 font-medium font-sans">{errors.privacy}</p>}
-            </div>
-            {globalError && (<div className="p-2 rounded-xl bg-red-50 border border-red-100 animate-pulse"><div className="flex"><div className="flex-shrink-0"><svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg></div><div className="ml-2"><h3 className="text-xs font-medium text-brand-red font-serif">Errore</h3><div className="mt-0.5 text-xs text-red-700 font-sans"><p>{globalError}</p></div></div></div></div>)}
-            <div className={`pt-1 transition-all duration-300 ${!privacyAccepted ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-              <Button type="button" onClick={handleSubmit} isLoading={loading} disabled={!privacyAccepted} className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 font-sans text-base">INVIA</Button>
-              <p className="text-center text-[10px] text-slate-400 mt-1 flex items-center justify-center font-sans"><svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>I dati verranno salvati in modo sicuro.</p>
-            </div>
+      case 3:
+        return (
+          <div className="text-center py-8 space-y-4 animate-in fade-in zoom-in duration-500">
+            <h2 className="text-2xl font-bold text-green-600">Registrazione Completata!</h2>
+            <p className="text-gray-600">
+              Grazie per aver iscritto tuo figlio. Ti abbiamo inviato una email di conferma.
+            </p>
+            {isDemoMode && (
+              <p className="text-xs text-orange-500 mt-4 border border-orange-200 bg-orange-50 p-2 rounded">
+                Nota: Modalità Demo attiva (Simulation).
+              </p>
+            )}
+            <p className="text-sm text-gray-500 mt-2">Verrai reindirizzato alla home tra pochi secondi...</p>
           </div>
         );
-      default: return null;
+      default:
+        return null;
     }
   };
+
+  // Determine if Back button is disabled (Only at very start)
+  const isBackDisabled = step === 0 && stepZeroSub === 0;
 
   return (
-    <>
-      <div className="w-full max-w-md mx-auto pb-10 relative flex items-center justify-center">
-        <button type="button" onClick={handlePrevCard} disabled={currentCard === 0} className={`absolute left-0 z-10 p-1 sm:p-2 -ml-6 sm:-ml-12 text-brand-blue transition-all duration-300 ${currentCard === 0 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'}`} aria-label="Indietro"><ChevronLeft className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} /></button>
-        <div className="w-full overflow-hidden px-1">
-          <form onKeyDown={handleKeyDown} className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCard * 100}%)` }}>
-            {[0, 1, 2, 3, 4].map((index) => (
-              <div key={index} className="w-full flex-shrink-0 px-1">
-                <Card className="shadow-2xl border-0 rounded-3xl bg-white/95 backdrop-blur-sm pt-3 border-t-4 border-brand-red min-h-[200px] flex flex-col">
-                  <CardContent className="px-4 pb-3 pt-1 flex-1 overflow-y-auto">
-                    {renderCardContent(index)}
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
-          </form>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden flex flex-col md:flex-row md:max-w-4xl min-h-[500px]">
+        
+        {/* Left Side: Mascot/Illustration */}
+        <div className="w-full md:w-1/2 bg-blue-50 p-6 flex flex-col items-center justify-center relative transition-colors duration-500 overflow-hidden">
+             <LemonMascot step={step} className="w-full h-full" />
+             {/* Simple Step Indicator */}
+             <div className="absolute bottom-4 flex gap-2">
+               {[0, 1, 2].map(i => (
+                 <div 
+                    key={i} 
+                    className={`h-2 w-2 rounded-full transition-all ${step === i ? 'bg-blue-600 w-4' : 'bg-blue-200'}`}
+                 />
+               ))}
+             </div>
         </div>
-        <button type="button" onClick={handleNextCard} disabled={currentCard === totalCards - 1 || !isCardValid(currentCard)} className={`absolute right-0 z-10 p-1 sm:p-2 -mr-6 sm:-mr-12 text-brand-blue transition-all duration-300 ${currentCard === totalCards - 1 ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 hover:scale-110'} ${!isCardValid(currentCard) ? 'opacity-30 cursor-not-allowed' : ''}`} aria-label="Avanti"><ChevronRight className="w-10 h-10 sm:w-12 sm:h-12" strokeWidth={3} /></button>
-      </div>
-      <div className="flex justify-center gap-2 -mt-6 pb-4">
-        {[0, 1, 2, 3, 4].map((index) => (<div key={index} className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`} />))}
-      </div>
-      <Modal isOpen={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} title="Informativa sulla Privacy">
-        <div className="space-y-4 text-slate-600 font-serif text-sm leading-relaxed">
-          <p>Ai sensi del Regolamento (UE) 2016/679 (GDPR), ti informiamo che i tuoi dati personali saranno trattati da EasyPeasy Labs per le finalità strettamente connesse alla gestione della tua iscrizione all'evento.</p>
-          <h4 className="font-bold text-brand-blue font-serif text-base">1. Finalità del trattamento</h4>
-          <p>I dati raccolti (nome, cognome, email, telefono, dati studente) saranno utilizzati esclusivamente per l'organizzazione dell'evento, l'invio di comunicazioni logistiche e la gestione degli accessi.</p>
-          <h4 className="font-bold text-brand-blue font-serif text-base">2. Conservazione dei dati</h4>
-          <p>I tuoi dati saranno conservati per il tempo strettamente necessario all'espletamento delle finalità sopra indicate e successivamente cancellati, salvo obblighi di legge.</p>
-          <h4 className="font-bold text-brand-blue font-serif text-base">3. I tuoi diritti</h4>
-          <p>Hai il diritto di chiedere al titolare del trattamento l'accesso ai tuoi dati personali, la rettifica, la cancellazione degli stessi o la limitazione del trattamento.</p>
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-4"><p className="italic text-xs text-brand-blue">Cliccando su "Ho capito" confermi di aver letto e compreso l'informativa.</p></div>
+
+        {/* Right Side: Form */}
+        <div className="w-full md:w-1/2 p-8 flex flex-col justify-between">
+           <div className="flex-1">
+             {renderStepContent(step)}
+             {errorMessage && (
+               <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100 animate-in fade-in slide-in-from-top-2">
+                 {errorMessage}
+               </div>
+             )}
+           </div>
+
+           {/* Buttons */}
+           {step < 3 && (
+             <div className="mt-8 flex justify-between gap-4">
+                <Button 
+                  variant="secondary" 
+                  onClick={handleBack} 
+                  disabled={isBackDisabled}
+                  className={isBackDisabled ? 'invisible' : ''}
+                >
+                  Indietro
+                </Button>
+                
+                {step === 2 ? (
+                  <Button 
+                    onClick={handleSubmit} 
+                    isLoading={isSubmitting}
+                    disabled={!validateCurrentState()}
+                  >
+                    Conferma
+                  </Button>
+                ) : (
+                  <Button onClick={handleNext}>
+                    Avanti
+                  </Button>
+                )}
+             </div>
+           )}
         </div>
-      </Modal>
-    </>
+      </div>
+    </div>
   );
 };
