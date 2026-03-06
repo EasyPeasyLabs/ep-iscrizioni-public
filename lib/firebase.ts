@@ -10,10 +10,25 @@ const firebaseConfig = {
   appId: "1:246216582684:web:8e016e5819ea8492e9e1d9"
 };
 
-// Initialize Firebase
-// Use compat syntax: firebase.initializeApp
-const app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
+let app;
+let dbInstance;
+let serverTimestampInstance;
 
-// Initialize Firestore
-export const db = app.firestore();
-export const serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
+try {
+  // Initialize Firebase
+  // Use compat syntax: firebase.initializeApp
+  app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
+  
+  // Initialize Firestore
+  dbInstance = app.firestore();
+  serverTimestampInstance = firebase.firestore.FieldValue.serverTimestamp;
+  console.log("Firebase initialized successfully");
+} catch (error) {
+  console.error("CRITICAL: Firebase initialization failed:", error);
+  // Fallback to prevent app crash, but functionality will be broken
+  dbInstance = null;
+  serverTimestampInstance = () => new Date();
+}
+
+export const db = dbInstance;
+export const serverTimestamp = serverTimestampInstance;

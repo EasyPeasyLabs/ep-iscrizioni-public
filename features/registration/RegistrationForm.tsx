@@ -6,6 +6,52 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { db, serverTimestamp } from '../../lib/firebase';
 
+// -- TYPES --
+interface Slot {
+  giorno: string;
+  orario: string;
+  postiRimanenti: number;
+  esaurito: boolean;
+  minAge: number;
+  maxAge: number;
+  tipo: string;
+}
+
+interface Location {
+  sedeId: string;
+  nomeSede: string;
+  indirizzo: string;
+  citta: string;
+  googleMapsLink?: string;
+  slot: Slot[];
+}
+
+// API Response Types
+interface ApiSlot {
+  dayOfWeek: number;
+  startTime: string;
+  endTime?: string;
+  minAge: number;
+  maxAge: number;
+  availableSeats: number;
+  isFull: boolean;
+  type?: string;
+}
+
+interface ApiLocation {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  googleMapsLink?: string;
+  slots: ApiSlot[];
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: ApiLocation[];
+}
+
 interface FormErrors {
   nome?: string;
   cognome?: string;
@@ -23,28 +69,48 @@ interface RegistrationFormProps {
   onSuccess?: () => void;
 }
 
-// Mock Data for Slots
-const AVAILABLE_SLOTS: Record<string, string[]> = {
-  "Bari - Poggiofranco": [
-    "Lunedì 16:30 - 18:00",
-    "Martedì 17:00 - 18:30", 
-    "Giovedì 15:00 - 16:30"
-  ],
-  "Bari - Murat": [
-    "Lunedì 15:00 - 16:30",
-    "Mercoledì 18:00 - 19:30",
-    "Venerdì 17:00 - 18:30"
-  ],
-  "Trani": [
-    "Martedì 16:00 - 17:30",
-    "Giovedì 18:00 - 19:30"
-  ],
-  "Online": [
-    "Lunedì 18:00 - 19:30",
-    "Mercoledì 15:00 - 16:30",
-    "Sabato 10:00 - 11:30"
-  ]
+// -- HELPERS --
+const isAgeCompatible = (age: number, minAge?: number, maxAge?: number): boolean => {
+  // If no age limits are defined, assume compatible
+  if (minAge === undefined && maxAge === undefined) return true;
+  
+  const min = minAge !== undefined ? minAge : 0;
+  const max = maxAge !== undefined ? maxAge : 99;
+  
+  return age >= min && age <= max;
 };
+
+const dayNumberMap: { [key: number]: string } = {
+  1: 'Lunedì',
+  2: 'Martedì',
+  3: 'Mercoledì',
+  4: 'Giovedì',
+  5: 'Venerdì',
+  6: 'Sabato',
+  7: 'Domenica'
+};
+
+const dayMap: { [key: string]: number } = {
+  'Domenica': 0, 'Lunedì': 1, 'Martedì': 2, 'Mercoledì': 3, 'Giovedì': 4, 'Venerdì': 5, 'Sabato': 6
+};
+
+const getNextDateString = (dayName: string): string | null => {
+  const targetDay = dayMap[dayName];
+  if (targetDay === undefined) return null;
+  
+  const date = new Date();
+  const currentDay = date.getDay();
+  let daysUntil = targetDay - currentDay;
+  
+  if (daysUntil <= 0) {
+    daysUntil += 7;
+  }
+  
+  date.setDate(date.getDate() + daysUntil);
+  return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlots";
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -67,10 +133,61 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [currentCard, setCurrentCard] = useState(0);
   const totalCards = 5;
 
-  // FIX: Track previous count to avoid unnecessary parent re-renders causing cursor jumps
+  // Dynamic locations state
+  const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+
   const prevCountRef = useRef(0);
 
-  // Validation Logic Helpers (Used for Sequential Locking)
+  // Fetch available slots
+  useEffect(() => {
+    const fetchSlots = async () => {
+      setIsLoadingLocations(true);
+      try {
+        const response = await fetch(PUBLIC_SLOTS_URL, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          }
+        });
+        
+        if (!response.ok) throw new Error("Failed to fetch slots");
+        
+        const apiResponse: ApiResponse = await response.json();
+        
+        if (apiResponse.success && Array.isArray(apiResponse.data)) {
+          const mappedLocations: Location[] = apiResponse.data.map((loc) => ({
+            sedeId: loc.id,
+            nomeSede: loc.name || 'Sede senza nome',
+            indirizzo: loc.address || '',
+            citta: loc.city || '',
+            googleMapsLink: loc.googleMapsLink,
+            slot: (loc.slots || []).map((s) => ({
+              giorno: dayNumberMap[s.dayOfWeek] || 'Sconosciuto',
+              orario: s.endTime ? `${s.startTime} - ${s.endTime}` : s.startTime,
+              postiRimanenti: typeof s.availableSeats === 'number' ? s.availableSeats : 0,
+              esaurito: s.isFull || s.availableSeats === 0,
+              minAge: typeof s.minAge === 'number' ? s.minAge : 0,
+              maxAge: typeof s.maxAge === 'number' ? s.maxAge : 99,
+              tipo: s.type || 'LAB'
+            }))
+          }));
+          setAvailableLocations(mappedLocations);
+        } else {
+          throw new Error("Invalid response format");
+        }
+      } catch (error) {
+        console.error("Error fetching slots:", error);
+        setGlobalError("Impossibile caricare le disponibilità. Riprova più tardi.");
+      } finally {
+        setIsLoadingLocations(false);
+      }
+    };
+
+    fetchSlots();
+  }, []);
+
+  // Validation Logic Helpers
   const isNomeValid = formData.nome.trim().length > 1;
   const isCognomeValid = formData.cognome.trim().length > 1;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
@@ -80,21 +197,18 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
 
-  // Calculate completed fields and notify parent (Gamification)
+  // Calculate completed fields
   useEffect(() => {
     let count = 0;
-    // Check sequentially matches the animation logic strictly
     if (isNomeValid) count++;
     if (isCognomeValid) count++;
     if (isEmailValid) count++;
     if (isPhoneValid) count++;
     if (isChildNameValid) count++;
     if (isChildAgeValid) count++;
-    if (isLocationValid && isSlotValid) count++; // Combined step
+    if (isLocationValid && isSlotValid) count++;
     if (privacyAccepted) count++;
     
-    // Only update parent if count HAS CHANGED. 
-    // This prevents the parent from re-rendering on every keystroke, fixing the cursor jump.
     if (onProgressUpdate && count !== prevCountRef.current) {
       onProgressUpdate(count);
       prevCountRef.current = count;
@@ -153,7 +267,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     setLoading(true);
 
     try {
-      // ARCHITECTURE COMPLIANCE: Map to 'new_leads' schema structure but save to allowed collection
       const leadData = {
         parentFirstName: formData.nome,
         parentLastName: formData.cognome,
@@ -171,7 +284,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         userAgent: navigator.userAgent
       };
 
-      // Write to 'raw_registrations' to avoid permission errors in 'new_leads'
+      if (!db) {
+        throw new Error("Database connection not initialized");
+      }
+
       await db.collection("raw_registrations").add(leadData);
 
       if (onSuccess) {
@@ -186,7 +302,25 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   };
 
-  const currentSlots = formData.selectedLocation ? AVAILABLE_SLOTS[formData.selectedLocation] || [] : [];
+  // Filter logic for current slots
+  const childAgeNum = parseInt(formData.childAge) || 0;
+  
+  const filteredLocations = availableLocations.filter(loc => 
+    loc.slot.some(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+  );
+
+  const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
+  
+  const currentSlots = selectedLocationObj 
+    ? selectedLocationObj.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+    : [];
+
+  // Calculate first available date
+  let firstAvailableDate: string | null = null;
+  if (formData.selectedSlot) {
+    const [day] = formData.selectedSlot.split(' ');
+    firstAvailableDate = getNextDateString(day);
+  }
 
   // Style helpers
   const inputBaseStyle = "rounded-xl font-sans transition-all duration-300 py-1.5";
@@ -267,23 +401,144 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         return (
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Preferenze</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <div>
-                <label htmlFor="selectedLocation" className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <select id="selectedLocation" value={formData.selectedLocation} onChange={handleChange} disabled={!isChildAgeValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedLocation ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildAgeValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
-                  <option value="" disabled>Seleziona una sede...</option>
-                  {Object.keys(AVAILABLE_SLOTS).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
-                {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
+            {childAgeNum > 0 && (
+              <p className="text-[10px] text-gray-500 mb-2">
+                Mostra corsi per età: <span className="font-semibold">{childAgeNum} anni</span>
+              </p>
+            )}
+            
+            <div className="flex flex-col gap-2 h-full">
+              <label className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+              
+              <div className="flex flex-col gap-2 w-full max-h-[180px] overflow-y-auto pr-1">
+                {isLoadingLocations ? (
+                  <div className="text-center py-4 text-gray-500 text-xs">Caricamento sedi...</div>
+                ) : filteredLocations.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500 text-xs">Nessuna sede disponibile per questa età</div>
+                ) : (
+                  filteredLocations.map(loc => {
+                    const isSelected = formData.selectedLocation === loc.sedeId;
+
+                    // Extract city from address (last part after comma) or use default
+                    let city = loc.citta;
+                    if (!city && loc.indirizzo) {
+                      const parts = loc.indirizzo.split(',');
+                      if (parts.length > 1) {
+                        city = parts[parts.length - 1].trim().toUpperCase();
+                      } else {
+                        city = "CITTÀ";
+                      }
+                    } else if (!city) {
+                      city = "CITTÀ";
+                    }
+
+                    // Filter slots compatible with child age for display
+                    const visibleSlots = loc.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge));
+
+                    return (
+                      <div 
+                        key={loc.sedeId}
+                        onClick={() => {
+                          if (isChildAgeValid) {
+                            setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: '' }));
+                          }
+                        }}
+                        className={`
+                          relative p-3 rounded-lg border cursor-pointer transition-all duration-200
+                          ${isSelected 
+                            ? 'border-brand-blue bg-blue-50 shadow-sm' 
+                            : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}
+                          ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
+                        `}
+                      >
+                        <div className={`absolute top-3 right-3 w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                        </div>
+
+                        <h3 className="font-medium text-slate-900 pr-6 text-sm mb-2">
+                          <span className="font-bold uppercase">{city}</span> - {loc.nomeSede}
+                        </h3>
+
+                        {/* Slot List Display */}
+                        <div className="space-y-1.5 mb-2">
+                          {visibleSlots.length > 0 ? (
+                            visibleSlots.map((slot, idx) => {
+                              const min = slot.minAge !== undefined ? slot.minAge : 0;
+                              const max = slot.maxAge !== undefined ? slot.maxAge : 99;
+                              const ageText = (min === 0 && max === 99) ? "Tutte le età" : `${min}-${max} anni`;
+                              const dayShort = slot.giorno.substring(0, 3).toUpperCase();
+                              const type = slot.tipo || 'LAB'; // Default to LAB if missing
+                              
+                              return (
+                                <div key={idx} className="flex items-center text-xs text-slate-600">
+                                  <span className={`
+                                    inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 w-9 text-center
+                                    ${type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
+                                  `}>
+                                    {type}
+                                  </span>
+                                  <span className="font-mono font-medium mr-2 w-8">{dayShort}</span>
+                                  <span className="mr-2">{slot.orario}</span>
+                                  <span className="text-slate-500 text-[10px]">{ageText}</span>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">Nessun orario disponibile per questa età.</p>
+                          )}
+                        </div>
+
+                        {loc.indirizzo && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-start text-[10px] text-slate-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 text-brand-red flex-shrink-0 mt-0.5">
+                              <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
+                              <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            <a 
+                              href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="hover:underline hover:text-brand-blue leading-tight"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {loc.indirizzo}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
-              <div>
+              {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
+
+              <div className="mt-2">
                 <label htmlFor="selectedSlot" className={`block text-xs font-medium mb-0.5 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
                 <select id="selectedSlot" value={formData.selectedSlot} onChange={handleChange} disabled={!isLocationValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
                   <option value="" disabled>{formData.selectedLocation ? "Seleziona disponibilità..." : "Prima seleziona una sede"}</option>
-                  {currentSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                  {currentSlots.map(s => {
+                    return (
+                      <option 
+                        key={`${s.giorno}-${s.orario}`} 
+                        value={`${s.giorno} ${s.orario}`}
+                        disabled={s.esaurito}
+                      >
+                        {s.giorno} {s.orario} ({s.tipo}) - {s.esaurito ? 'ESAURITO' : `Posti: ${s.postiRimanenti}`}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.selectedSlot && <p className="mt-1 text-xs text-red-600">{errors.selectedSlot}</p>}
               </div>
+
+              {firstAvailableDate && (
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
+                  <p className="text-xs text-brand-blue text-center">
+                    <span className="block text-[10px] text-blue-400 uppercase tracking-wider font-semibold mb-0.5">Prima Lezione Disponibile</span>
+                    <span className="font-bold capitalize">{firstAvailableDate}</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         );
