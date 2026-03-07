@@ -55,13 +55,13 @@ export const syncRegistrationToGestionale = onDocumentCreated(
         syncedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[syncRegistrationToGestionale] Fallimento sincronizzazione per docId: ${docId}`, error);
 
       // Aggiorniamo il documento locale in raw_registrations con lo stato di errore
       await snap.ref.update({
         syncStatus: "failed",
-        syncError: error.message || "Errore sconosciuto durante la sincronizzazione HTTP",
+        syncError: error instanceof Error ? error.message : "Errore sconosciuto durante la sincronizzazione HTTP",
         failedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }

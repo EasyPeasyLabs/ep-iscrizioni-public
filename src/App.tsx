@@ -37,7 +37,7 @@ function App() {
 
   const handleSuccess = () => {
     setIsSuccess(true);
-    setCompletionCount(9); // Trigger "Grand Finale" animation (hat removal) - 8 fields + 1
+    setCompletionCount(6); // Trigger "Grand Finale" animation (frame 6)
 
     // Auto-reset after 10 seconds
     setTimeout(() => {
@@ -85,12 +85,12 @@ function App() {
         </header>
 
         {/* Intro Section - Compact & Centered */}
-        <div className="w-full px-4 py-2 bg-slate-50">
+        <div className="w-full px-4 py-2 bg-slate-50 relative z-20">
             <div className="text-center max-w-lg mx-auto w-full flex flex-col items-center justify-center">
               {/* MechaLemon Mascot - Compact */}
               <div className="flex-none flex items-center justify-center w-full">
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 transition-all duration-700 ease-in-out">
-                      <MechaLemon className="w-full h-full" completionStep={completionCount} totalSteps={8} />
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 transition-all duration-700 ease-in-out relative z-30">
+                      <MechaLemon className="w-full h-full" completionStep={completionCount} />
                   </div>
               </div>
             </div>
@@ -132,7 +132,7 @@ function App() {
                        </p>
                        
                        <p className="text-lg text-slate-600 font-sans mb-8">
-                         Hai visto? È stato facile facile: <span className="font-hand text-brand-red text-xl">easy peasy!</span>
+                         Hai visto? È stato facile facile: <br /> <span className="font-hand text-brand-red text-xl">easy peasy!</span>
                        </p>
 
                        <p className="text-lg text-slate-600 font-sans font-semibold">

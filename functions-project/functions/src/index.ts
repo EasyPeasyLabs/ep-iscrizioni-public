@@ -26,7 +26,7 @@ interface RegistrationData {
   slotTime: string;
   
   // Metadata
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

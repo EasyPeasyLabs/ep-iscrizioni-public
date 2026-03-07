@@ -110,7 +110,7 @@ const getNextDateString = (dayName: string): string | null => {
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlots";
+const PUBLIC_SLOTS_URL = "/api/slots";
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -197,23 +197,22 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
 
-  // Calculate completed fields
+  // Calculate current animation frame
   useEffect(() => {
-    let count = 0;
-    if (isNomeValid) count++;
-    if (isCognomeValid) count++;
-    if (isEmailValid) count++;
-    if (isPhoneValid) count++;
-    if (isChildNameValid) count++;
-    if (isChildAgeValid) count++;
-    if (isLocationValid && isSlotValid) count++;
-    if (privacyAccepted) count++;
-    
-    if (onProgressUpdate && count !== prevCountRef.current) {
-      onProgressUpdate(count);
-      prevCountRef.current = count;
+    let frame = 0;
+    if (loading) {
+      frame = 6;
+    } else if (currentCard === 4) {
+      frame = privacyAccepted ? 5 : 4;
+    } else {
+      frame = currentCard;
     }
-  }, [formData, privacyAccepted, onProgressUpdate, isNomeValid, isCognomeValid, isEmailValid, isPhoneValid, isChildNameValid, isChildAgeValid, isLocationValid, isSlotValid]);
+    
+    if (onProgressUpdate && frame !== prevCountRef.current) {
+      onProgressUpdate(frame);
+      prevCountRef.current = frame;
+    }
+  }, [currentCard, privacyAccepted, loading, onProgressUpdate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
@@ -337,14 +336,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         console.warn("Database locale non inizializzato, backup saltato.");
       }
 
-      // 3. Send to Gestionale (Project A)
+      // 3. Send to Gestionale (Project A) via local proxy to avoid CORS
       try {
-        const RECEIVE_LEAD_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead";
+        const RECEIVE_LEAD_URL = "/api/receive-lead";
         const response = await fetch(RECEIVE_LEAD_URL, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer EP_V1_BRIDGE_SECURE_KEY_8842_XY"
+            "Content-Type": "application/json"
           },
           body: JSON.stringify(payload)
         });
@@ -355,12 +353,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
         // 4. Update local backup status if API call succeeds
         if (docRef) {
-          await docRef.update({ syncStatus: "synced_to_gestionale" });
+          try {
+            await docRef.update({ syncStatus: "synced_to_gestionale" });
+          } catch (updateErr) {
+            console.warn("Impossibile aggiornare lo stato locale (permessi insufficienti), ma il lead è stato elaborato.");
+          }
         }
       } catch (apiErr) {
         console.error("Errore sincronizzazione API (CORS o Rete):", apiErr);
         // Se il salvataggio locale è fallito E l'API è fallita, blocchiamo l'utente
         if (!docRef) {
+          // eslint-disable-next-line preserve-caught-error
           throw new Error("Impossibile salvare i dati. Riprova più tardi.");
         }
         // Altrimenti, i dati sono salvi in locale. Logghiamo l'errore ma proseguiamo con successo.
@@ -433,7 +436,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       if (currentCard < totalCards - 1) {
         handleNextCard();
       } else if (isCardValid(currentCard)) {
-        handleSubmit(e as any);
+        handleSubmit(e as unknown as React.FormEvent);
       }
     }
   };
@@ -690,12 +693,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         </button>
 
         {/* Card Container */}
-        <div className="w-full overflow-hidden px-1">
+        <div className="w-full overflow-hidden px-1 pb-6">
           <form onKeyDown={handleKeyDown} className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCard * 100}%)` }}>
             {[0, 1, 2, 3, 4].map((index) => (
               <div key={index} className="w-full flex-shrink-0 px-1">
                 <Card className="shadow-2xl border-0 rounded-3xl bg-white/95 backdrop-blur-sm pt-3 border-t-4 border-brand-red min-h-[200px] flex flex-col">
-                  <CardContent className="px-4 pb-3 pt-1 flex-1 overflow-y-auto">
+                  <CardContent className="px-4 pb-1 pt-1 flex-1 overflow-y-auto">
                     {renderCardContent(index)}
                   </CardContent>
                 </Card>
