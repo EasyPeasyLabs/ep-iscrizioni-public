@@ -289,7 +289,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         endTime = timeParts[1] || "";
       }
 
-      const payload = {
+      const payloadDati = {
         nome: formData.nome,
         cognome: formData.cognome,
         email: formData.email,
@@ -336,15 +336,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         console.warn("Database locale non inizializzato, backup saltato.");
       }
 
-      // 3. Send to Gestionale (Project A) via local proxy to avoid CORS
+      // 3. Send to Gestionale (Project A)
       try {
-        const RECEIVE_LEAD_URL = "/api/receive-lead";
-        const response = await fetch(RECEIVE_LEAD_URL, {
+        const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            // LA RIGA QUI SOTTO È FONDAMENTALE (Attenzione allo spazio dopo Bearer)
+            "Authorization": "Bearer EP_V1_BRIDGE_SECURE_KEY_8842_XY" 
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payloadDati)
         });
 
         if (!response.ok) {
