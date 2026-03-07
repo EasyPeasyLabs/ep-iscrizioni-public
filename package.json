@@ -20,7 +20,7 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.14.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node-fetch": "^2.6.13",
