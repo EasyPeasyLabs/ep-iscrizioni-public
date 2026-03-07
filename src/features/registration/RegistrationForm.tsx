@@ -336,14 +336,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         console.warn("Database locale non inizializzato, backup saltato.");
       }
 
-      // 3. Send to Gestionale (Project A)
+      // 3. Send to Gestionale (Project A) via local Vercel API
       try {
-        const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead", {
+        const response = await fetch("/api/receive-lead", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            // LA RIGA QUI SOTTO È FONDAMENTALE (Attenzione allo spazio dopo Bearer)
-            "Authorization": "Bearer EP_V1_BRIDGE_SECURE_KEY_8842_XY" 
+            "Content-Type": "application/json"
           },
           body: JSON.stringify(payloadDati)
         });
