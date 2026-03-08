@@ -7,14 +7,23 @@ import { Modal } from '../../components/ui/Modal';
 import { db, serverTimestamp } from '../../lib/firebase';
 
 // -- TYPES --
-interface Slot {
-  giorno: string;
-  orario: string;
-  postiRimanenti: number;
-  esaurito: boolean;
+interface IncludedSlot {
+  type: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface Bundle {
+  bundleId: string;
+  name: string;
+  description?: string;
+  price?: number;
+  dayOfWeek: number;
   minAge: number;
   maxAge: number;
-  tipo: string;
+  availableSeats: number;
+  isFull: boolean;
+  includedSlots: IncludedSlot[];
 }
 
 interface Location {
@@ -23,19 +32,27 @@ interface Location {
   indirizzo: string;
   citta: string;
   googleMapsLink?: string;
-  slot: Slot[];
+  bundles: Bundle[];
 }
 
 // API Response Types
-interface ApiSlot {
-  dayOfWeek: number;
+interface ApiIncludedSlot {
+  type: string;
   startTime: string;
-  endTime?: string;
+  endTime: string;
+}
+
+interface ApiBundle {
+  bundleId: string;
+  name: string;
+  description?: string;
+  price?: number;
+  dayOfWeek: number;
   minAge: number;
   maxAge: number;
   availableSeats: number;
   isFull: boolean;
-  type?: string;
+  includedSlots: ApiIncludedSlot[];
 }
 
 interface ApiLocation {
@@ -44,7 +61,7 @@ interface ApiLocation {
   address?: string;
   city?: string;
   googleMapsLink?: string;
-  slots: ApiSlot[];
+  bundles: ApiBundle[];
 }
 
 interface ApiResponse {
@@ -162,14 +179,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             indirizzo: loc.address || '',
             citta: loc.city || '',
             googleMapsLink: loc.googleMapsLink,
-            slot: (loc.slots || []).map((s) => ({
-              giorno: dayNumberMap[s.dayOfWeek] || 'Sconosciuto',
-              orario: s.endTime ? `${s.startTime} - ${s.endTime}` : s.startTime,
-              postiRimanenti: typeof s.availableSeats === 'number' ? s.availableSeats : 0,
-              esaurito: s.isFull || s.availableSeats === 0,
-              minAge: typeof s.minAge === 'number' ? s.minAge : 0,
-              maxAge: typeof s.maxAge === 'number' ? s.maxAge : 99,
-              tipo: s.type || 'LAB'
+            bundles: (loc.bundles || []).map((b) => ({
+              bundleId: b.bundleId,
+              name: b.name,
+              description: b.description,
+              price: b.price,
+              dayOfWeek: b.dayOfWeek,
+              minAge: typeof b.minAge === 'number' ? b.minAge : 0,
+              maxAge: typeof b.maxAge === 'number' ? b.maxAge : 99,
+              availableSeats: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
+              isFull: b.isFull || b.availableSeats === 0,
+              includedSlots: b.includedSlots || []
             }))
           }));
           setAvailableLocations(mappedLocations);
@@ -270,23 +290,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       const selectedLoc = availableLocations.find(l => l.sedeId === formData.selectedLocation);
       const locationName = selectedLoc ? selectedLoc.nomeSede : '';
       
-      const selectedSlotObj = selectedLoc?.slot.find(s => `${s.giorno} ${s.orario}` === formData.selectedSlot);
+      const selectedBundle = selectedLoc?.bundles.find(b => b.bundleId === formData.selectedSlot);
       
       let dayOfWeek = 0;
       let startTime = "";
       let endTime = "";
       let type = "LAB";
+      let bundleName = "";
 
-      if (selectedSlotObj) {
-        const reverseDayMap: { [key: string]: number } = {
-          'Lunedì': 1, 'Martedì': 2, 'Mercoledì': 3, 'Giovedì': 4, 'Venerdì': 5, 'Sabato': 6, 'Domenica': 7
-        };
-        dayOfWeek = reverseDayMap[selectedSlotObj.giorno] || 0;
-        type = selectedSlotObj.tipo || "LAB";
+      if (selectedBundle) {
+        dayOfWeek = selectedBundle.dayOfWeek;
+        bundleName = selectedBundle.name;
         
-        const timeParts = selectedSlotObj.orario.split(' - ');
-        startTime = timeParts[0] || "";
-        endTime = timeParts[1] || "";
+        // Concatenate times for backward compatibility
+        startTime = selectedBundle.includedSlots.map(s => s.startTime).join(" & ");
+        endTime = selectedBundle.includedSlots.map(s => s.endTime).join(" & ");
+        
+        // If there's only one slot, use its type, otherwise use a generic or combined type
+        type = selectedBundle.includedSlots.length === 1 
+          ? selectedBundle.includedSlots[0].type 
+          : selectedBundle.includedSlots.map(s => s.type).join("+");
       }
 
       const payloadDati = {
@@ -300,12 +323,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         locationId: formData.selectedLocation,
         locationName: locationName,
         selectedSlot: {
+          bundleId: selectedBundle?.bundleId,
+          bundleName: bundleName,
           dayOfWeek: dayOfWeek,
           startTime: startTime,
           endTime: endTime,
           type: type
         },
-        notes: `Lead da Pagina Pubblica. Sede: ${locationName}, Orario: ${formData.selectedSlot}`,
+        notes: `Lead da Pagina Pubblica. Sede: ${locationName}, Pacchetto: ${bundleName}`,
         privacyAccepted: privacyAccepted,
         marketingAccepted: false
       };
@@ -320,8 +345,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         childName: formData.childName, 
         childAge: formData.childAge,
         selectedLocation: formData.selectedLocation,
-        selectedSlot: formData.selectedSlot,
-        notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
+        selectedSlot: payloadDati.selectedSlot,
+        notes: `Selected Bundle: ${bundleName}. Lead from Public Landing Page (Full Flow)`,
         status: "new",
         privacyConsent: true,
         submittedAt: serverTimestamp(),
@@ -385,20 +410,23 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const childAgeNum = parseInt(formData.childAge) || 0;
   
   const filteredLocations = availableLocations.filter(loc => 
-    loc.slot.some(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+    loc.bundles.some(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge))
   );
 
   const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
   
-  const currentSlots = selectedLocationObj 
-    ? selectedLocationObj.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+  const currentBundles = selectedLocationObj 
+    ? selectedLocationObj.bundles.filter(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge))
     : [];
 
   // Calculate first available date
   let firstAvailableDate: string | null = null;
   if (formData.selectedSlot) {
-    const [day] = formData.selectedSlot.split(' ');
-    firstAvailableDate = getNextDateString(day);
+    const selectedBundle = currentBundles.find(b => b.bundleId === formData.selectedSlot);
+    if (selectedBundle) {
+      const dayName = dayNumberMap[selectedBundle.dayOfWeek] || 'Lunedì';
+      firstAvailableDate = getNextDateString(dayName);
+    }
   }
 
   // Style helpers
@@ -489,15 +517,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             <div className="flex flex-col gap-1 h-full">
               <label className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
               
-              <div className="flex flex-col gap-1 w-full max-h-[180px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-1">
                 {isLoadingLocations ? (
                   <div className="text-center py-4 text-gray-500 text-xs">Caricamento sedi...</div>
                 ) : filteredLocations.length === 0 ? (
                   <div className="text-center py-4 text-gray-500 text-xs">Nessuna sede disponibile per questa età</div>
                 ) : (
                   filteredLocations.map(loc => {
-                    const isSelected = formData.selectedLocation === loc.sedeId;
-
                     // Extract city from address (last part after comma) or use default
                     let city = loc.citta;
                     if (!city && loc.indirizzo) {
@@ -511,64 +537,88 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                       city = "CITTÀ";
                     }
 
-                    // Filter slots compatible with child age for display
-                    const visibleSlots = loc.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge));
+                    // Filter bundles compatible with child age for display
+                    const visibleBundles = loc.bundles.filter(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge));
 
                     return (
-                      <div 
-                        key={loc.sedeId}
-                        onClick={() => {
-                          if (isChildAgeValid) {
-                            setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: '' }));
-                          }
-                        }}
-                        className={`
-                          relative p-2 rounded-lg border cursor-pointer transition-all duration-200
-                          ${isSelected 
-                            ? 'border-brand-blue bg-blue-50 shadow-sm' 
-                            : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}
-                          ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
-                        `}
-                      >
-                        <div className={`absolute top-2 right-2 w-3 h-3 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
-                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand-blue" />}
-                        </div>
-
-                        <h3 className="font-medium text-slate-900 pr-6 text-xs mb-1">
+                      <div key={loc.sedeId} className="mb-2 p-2 rounded-lg border border-slate-200 bg-white">
+                        <h3 className="font-medium text-slate-900 text-xs mb-2">
                           <span className="font-bold uppercase">{city}</span> - {loc.nomeSede}
                         </h3>
-
-                        {/* Slot List Display */}
-                        <div className="space-y-1 mb-1">
-                          {visibleSlots.length > 0 ? (
-                            visibleSlots.map((slot, idx) => {
-                              const min = slot.minAge !== undefined ? slot.minAge : 0;
-                              const max = slot.maxAge !== undefined ? slot.maxAge : 99;
+                        
+                        <div className="space-y-2">
+                          {visibleBundles.length > 0 ? (
+                            visibleBundles.map((bundle) => {
+                              const isSelected = formData.selectedLocation === loc.sedeId && formData.selectedSlot === bundle.bundleId;
+                              const min = bundle.minAge !== undefined ? bundle.minAge : 0;
+                              const max = bundle.maxAge !== undefined ? bundle.maxAge : 99;
                               const ageText = (min === 0 && max === 99) ? "Tutte le età" : `${min}-${max} anni`;
-                              const dayShort = slot.giorno.substring(0, 3).toUpperCase();
-                              const type = slot.tipo || 'LAB'; // Default to LAB if missing
+                              const dayName = dayNumberMap[bundle.dayOfWeek] || 'Sconosciuto';
+                              const dayShort = dayName.substring(0, 3).toUpperCase();
+                              const isFull = bundle.isFull || bundle.availableSeats === 0;
                               
                               return (
-                                <div key={idx} className="flex items-center text-[10px] text-slate-600">
-                                  <span className={`
-                                    inline-block px-1 py-0.5 rounded text-[9px] font-bold mr-1.5 w-8 text-center
-                                    ${type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
-                                  `}>
-                                    {type}
-                                  </span>
-                                  <span className="font-mono font-medium mr-1.5 w-7">{dayShort}</span>
-                                  <span className="mr-1.5">{slot.orario}</span>
-                                  <span className="text-slate-500 text-[9px]">{ageText}</span>
+                                <div 
+                                  key={bundle.bundleId}
+                                  onClick={() => {
+                                    if (isChildAgeValid && !isFull) {
+                                      setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
+                                      if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
+                                      if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
+                                    }
+                                  }}
+                                  className={`
+                                    relative p-2.5 rounded-lg border transition-all duration-200
+                                    ${isFull ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' : 'cursor-pointer'}
+                                    ${isSelected && !isFull
+                                      ? 'border-brand-blue bg-blue-50 shadow-sm ring-1 ring-brand-blue' 
+                                      : !isFull ? 'border-slate-200 hover:border-blue-300 hover:bg-slate-50' : ''}
+                                    ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
+                                  `}
+                                >
+                                  <div className={`absolute top-2.5 right-2.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
+                                    {isSelected && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                                  </div>
+
+                                  <div className="pr-6 mb-2">
+                                    <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
+                                      <span className="font-bold text-slate-800 text-[11px]">{bundle.name}</span>
+                                      <span className="text-[10px] text-brand-blue font-semibold uppercase">OGNI {dayName}</span>
+                                      {isFull && (
+                                        <span className="bg-red-100 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ml-auto">Esaurito</span>
+                                      )}
+                                    </div>
+                                    {bundle.description && (
+                                      <p className="text-[9px] text-slate-500 leading-tight">{bundle.description}</p>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1 bg-white/60 rounded p-1.5 border border-slate-100">
+                                    {bundle.includedSlots.map((slot, idx) => (
+                                      <div key={idx} className="flex items-center text-[10px] text-slate-600">
+                                        <span className={`
+                                          inline-block px-1 py-0.5 rounded text-[9px] font-bold mr-1.5 w-8 text-center
+                                          ${slot.type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
+                                        `}>
+                                          {slot.type}
+                                        </span>
+                                        <span className="font-mono font-medium mr-1.5 w-7">{dayShort}</span>
+                                        <span className="mr-1.5 font-mono">{slot.startTime} - {slot.endTime}</span>
+                                        <span className="text-slate-500 text-[9px] mr-auto">{ageText}</span>
+                                        <span className="font-semibold text-slate-700 text-[9px]">1 Ingresso</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-[10px] text-slate-400 italic">Nessun orario disponibile per questa età.</p>
+                            <p className="text-[10px] text-slate-400 italic">Nessun pacchetto disponibile per questa età.</p>
                           )}
                         </div>
 
                         {loc.indirizzo && (
-                          <div className="mt-1 pt-1 border-t border-slate-100 flex items-start text-[9px] text-slate-500">
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-start text-[9px] text-slate-500">
                             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 text-brand-red flex-shrink-0 mt-0.5">
                               <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
                               <circle cx="12" cy="10" r="3"></circle>
@@ -589,26 +639,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                   })
                 )}
               </div>
-              {errors.selectedLocation && <p className="mt-1 text-xs text-red-600">{errors.selectedLocation}</p>}
-
-              <div className="mt-1">
-                <label htmlFor="selectedSlot" className={`block text-xs font-medium mb-0.5 ${!isLocationValid ? 'text-slate-400' : 'text-slate-700'}`}>Giorno e Orario <span className={!isLocationValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <select id="selectedSlot" value={formData.selectedSlot} onChange={handleChange} disabled={!isLocationValid} className={`block w-full px-3 py-1.5 border rounded-xl shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.selectedSlot ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isLocationValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`}>
-                  <option value="" disabled>{formData.selectedLocation ? "Seleziona disponibilità..." : "Prima seleziona una sede"}</option>
-                  {currentSlots.map(s => {
-                    return (
-                      <option 
-                        key={`${s.giorno}-${s.orario}`} 
-                        value={`${s.giorno} ${s.orario}`}
-                        disabled={s.esaurito}
-                      >
-                        {s.giorno} {s.orario} ({s.tipo}) - {s.esaurito ? 'ESAURITO' : `Posti: ${s.postiRimanenti}`}
-                      </option>
-                    );
-                  })}
-                </select>
-                {errors.selectedSlot && <p className="mt-1 text-xs text-red-600">{errors.selectedSlot}</p>}
-              </div>
+              {(errors.selectedLocation || errors.selectedSlot) && <p className="mt-1 text-xs text-red-600">Seleziona un pacchetto per continuare</p>}
 
               {firstAvailableDate && (
                 <div className="mt-1 p-1.5 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
