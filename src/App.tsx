@@ -141,7 +141,7 @@ function App() {
                      </div>
                      
                      <p className="text-xs text-slate-400 italic mt-10">
-                       il modulo si resetterà automaticamente tra pochi secondi...
+                       Questo modulo si resetterà automaticamente tra pochi secondi...
                      </p>
                   </div>
                 </div>
