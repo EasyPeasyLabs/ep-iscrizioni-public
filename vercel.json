@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/i/:id",
+      "destination": "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/enrollmentGateway?id=:id"
+    }
+  ]
+}
