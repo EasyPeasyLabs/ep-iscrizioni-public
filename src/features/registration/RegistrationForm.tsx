@@ -16,6 +16,7 @@ interface IncludedSlot {
 interface Bundle {
   bundleId: string;
   name: string;
+  publicName?: string;
   description?: string;
   price?: number;
   dayOfWeek: number;
@@ -45,6 +46,7 @@ interface ApiIncludedSlot {
 interface ApiBundle {
   bundleId: string;
   name: string;
+  publicName?: string;
   description?: string;
   price?: number;
   dayOfWeek: number;
@@ -182,6 +184,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             bundles: (loc.bundles || []).map((b) => ({
               bundleId: b.bundleId,
               name: b.name,
+              publicName: b.publicName || b.name,
               description: b.description,
               price: b.price,
               dayOfWeek: b.dayOfWeek,
@@ -234,11 +237,48 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
   }, [currentCard, privacyAccepted, loading, onProgressUpdate]);
 
+  const formatPhoneForDisplay = (phone: string) => {
+    if (!phone) return '';
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('+39')) {
+      const prefix = '+39';
+      const rest = cleaned.substring(3);
+      let formatted = prefix;
+      if (rest.length > 0) formatted += ' ' + rest.substring(0, 3);
+      if (rest.length > 3) formatted += ' ' + rest.substring(3, 6);
+      if (rest.length > 6) formatted += ' ' + rest.substring(6, 10);
+      if (rest.length > 10) formatted += rest.substring(10);
+      return formatted;
+    }
+    return cleaned;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     
     if (id === 'selectedLocation') {
       setFormData(prev => ({ ...prev, selectedLocation: value, selectedSlot: '' }));
+    } else if (id === 'telefono') {
+      let val = value.replace(/[^\d+]/g, '');
+      const oldVal = formData.telefono;
+      
+      if (val.length > 0) {
+        if (val.startsWith('0039')) {
+          val = '+39' + val.substring(4);
+        } else if (!val.startsWith('+39')) {
+          val = val.replace(/^\+?/, ''); // remove leading +
+          
+          if (oldVal === '+39' && val.length < 3) {
+            val = '';
+          } else if (val.startsWith('39') && val.length > 3) {
+            val = '+' + val;
+          } else {
+            val = '+39' + val;
+          }
+        }
+      }
+      
+      setFormData(prev => ({ ...prev, [id]: val }));
     } else {
       setFormData(prev => ({ ...prev, [id]: value }));
     }
@@ -486,7 +526,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Contatti Genitore</h3>
             <div className="grid grid-cols-1 gap-2">
               <Input id="email" type="email" label="Email" placeholder="mario.rossi@email.com" value={formData.email} onChange={handleChange} error={errors.email} required disabled={!isCognomeValid} className={`${inputBaseStyle} ${!isCognomeValid ? disabledStyle : enabledStyle}`} />
-              <Input id="telefono" type="tel" label="Telefono" placeholder="+39 333 1234567" value={formData.telefono} onChange={handleChange} error={errors.telefono} required disabled={!isEmailValid} className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} />
+              <Input id="telefono" type="tel" label="Telefono" placeholder="+39 333 123 4567" value={formatPhoneForDisplay(formData.telefono)} onChange={handleChange} error={errors.telefono} required disabled={!isEmailValid} className={`${inputBaseStyle} ${!isEmailValid ? disabledStyle : enabledStyle}`} />
             </div>
           </div>
         );
@@ -582,8 +622,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
                                   <div className="pr-6 mb-2">
                                     <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className="font-bold text-slate-800 text-[11px]">{bundle.name}</span>
-                                      <span className="text-[10px] text-brand-blue font-semibold uppercase">OGNI {dayName}</span>
+                                      <span className="font-bold text-slate-800 text-[11px]">{bundle.publicName}</span>
+                                      <span className="text-[10px] text-brand-blue font-semibold uppercase">{dayName}</span>
                                       {isFull && (
                                         <span className="bg-red-100 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ml-auto">Esaurito</span>
                                       )}
@@ -605,7 +645,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         <span className="font-mono font-medium mr-1.5 w-7">{dayShort}</span>
                                         <span className="mr-1.5 font-mono">{slot.startTime} - {slot.endTime}</span>
                                         <span className="text-slate-500 text-[9px] mr-auto">{ageText}</span>
-                                        <span className="font-semibold text-slate-700 text-[9px]">1 Ingresso</span>
                                       </div>
                                     ))}
                                   </div>
