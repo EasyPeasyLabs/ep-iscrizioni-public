@@ -11,11 +11,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: "Internal Server Error: Configuration missing" });
     }
     
-    const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead", {
+    const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLeadV2", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`
+        "x-bridge-key": BRIDGE_SECURE_KEY
       },
       body: JSON.stringify(req.body)
     });

@@ -13,7 +13,7 @@ export default async function handler(req, res) {
       method: "GET",
       headers: {
         "Accept": "application/json",
-        "Authorization": `Bearer ${BRIDGE_SECURE_KEY}`
+        "x-bridge-key": BRIDGE_SECURE_KEY
       }
     });
 
