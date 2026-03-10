@@ -11,6 +11,8 @@ interface IncludedSlot {
   type: string;
   startTime: string;
   endTime: string;
+  minAge?: number;
+  maxAge?: number;
 }
 
 interface Bundle {
@@ -23,6 +25,7 @@ interface Bundle {
   minAge: number;
   maxAge: number;
   availableSeats: number;
+  originalCapacity: number; // Added
   isFull: boolean;
   includedSlots: IncludedSlot[];
 }
@@ -41,6 +44,8 @@ interface ApiIncludedSlot {
   type: string;
   startTime: string;
   endTime: string;
+  minAge?: number;
+  maxAge?: number;
 }
 
 interface ApiBundle {
@@ -81,6 +86,16 @@ interface FormErrors {
   selectedLocation?: string;
   selectedSlot?: string;
   privacy?: string;
+}
+
+interface PendingRegistration {
+  id: string;
+  locationId: string;
+  selectedSlot: {
+    bundleId: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 interface RegistrationFormProps {
@@ -154,9 +169,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   // Dynamic locations state
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
 
   const prevCountRef = useRef(0);
+
+  // Fetch pending registrations from local Firestore to account for real-time occupancy
+  useEffect(() => {
+    if (!db) return;
+    
+    const unsubscribe = db.collection("raw_registrations")
+      .where("syncStatus", "==", "pending_sync")
+      .onSnapshot((snapshot) => {
+        const pending = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRegistration));
+        setPendingRegistrations(pending);
+      }, (error) => {
+        console.error("Error listening to pending registrations:", error);
+      });
+      
+    return () => unsubscribe();
+  }, []);
 
   // Fetch available slots
   useEffect(() => {
@@ -191,6 +223,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
               minAge: typeof b.minAge === 'number' ? b.minAge : 0,
               maxAge: typeof b.maxAge === 'number' ? b.maxAge : 99,
               availableSeats: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
+              originalCapacity: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
               isFull: b.isFull || b.availableSeats === 0,
               includedSlots: b.includedSlots || []
             }))
@@ -209,6 +242,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
     fetchSlots();
   }, []);
+
+  // Real-time availability calculation
+  const locationsWithRealAvailability = React.useMemo(() => {
+    return availableLocations.map(loc => ({
+      ...loc,
+      bundles: loc.bundles.map(bundle => {
+        const pendingCount = pendingRegistrations.filter(r => 
+          r.locationId === loc.sedeId && r.selectedSlot.bundleId === bundle.bundleId
+        ).length;
+        
+        const realAvailableSeats = Math.max(0, bundle.originalCapacity - pendingCount);
+        
+        return {
+          ...bundle,
+          availableSeats: realAvailableSeats,
+          isFull: realAvailableSeats === 0
+        };
+      })
+    }));
+  }, [availableLocations, pendingRegistrations]);
 
   // Validation Logic Helpers
   const isNomeValid = formData.nome.trim().length > 1;
@@ -239,7 +292,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   const formatPhoneForDisplay = (phone: string) => {
     if (!phone) return '';
-    let cleaned = phone.replace(/[^\d+]/g, '');
+    const cleaned = phone.replace(/[^\d+]/g, '');
     if (cleaned.startsWith('+39')) {
       const prefix = '+39';
       const rest = cleaned.substring(3);
@@ -419,7 +472,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         if (docRef) {
           try {
             await docRef.update({ syncStatus: "synced_to_gestionale" });
-          } catch (updateErr) {
+          } catch {
             console.warn("Impossibile aggiornare lo stato locale (permessi insufficienti), ma il lead è stato elaborato.");
           }
         }
@@ -427,7 +480,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         console.error("Errore sincronizzazione API (CORS o Rete):", apiErr);
         // Se il salvataggio locale è fallito E l'API è fallita, blocchiamo l'utente
         if (!docRef) {
-          // eslint-disable-next-line preserve-caught-error
           throw new Error("Impossibile salvare i dati. Riprova più tardi.");
         }
         // Altrimenti, i dati sono salvi in locale. Logghiamo l'errore ma proseguiamo con successo.
@@ -449,8 +501,69 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   // Filter logic for current slots
   const childAgeNum = parseInt(formData.childAge) || 0;
   
-  const filteredLocations = availableLocations.filter(loc => 
-    loc.bundles.some(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge))
+  /*
+  // -- NEW MOTOR: Physical Occupancy & Minimo Comune Denominatore --
+  const calculateAdjustedLocations = (locations: Location[], pending: PendingRegistration[]) => {
+    if (locations.length === 0) return locations;
+    // 1. Build local occupancy map for PENDING registrations
+    // Key: ${locationId}_${dayOfWeek}_${startTime}
+    const pendingOccupancy = new Map<string, number>();
+    pending.forEach(reg => {
+      const slot = reg.selectedSlot;
+      if (!slot || !slot.bundleId) return;
+      
+      // Find the bundle definition to know all its physical slots
+      const bundleDef = locations
+        .flatMap(l => l.bundles)
+        .find(b => b.bundleId === slot.bundleId);
+        
+      if (bundleDef) {
+        bundleDef.includedSlots.forEach(s => {
+          const key = `${reg.locationId}_${bundleDef.dayOfWeek}_${s.startTime}`;
+          pendingOccupancy.set(key, (pendingOccupancy.get(key) || 0) + 1);
+        });
+      }
+    });
+
+    // 2. Adjust availability using the "Minimo Comune Denominatore" logic
+    return locations.map(loc => ({
+      ...loc,
+      bundles: loc.bundles.map(bundle => {
+        // Start with the base availability from the API (Project A)
+        let minAvailable = bundle.availableSeats;
+        
+        // For each physical slot in the bundle, subtract local pending occupancy
+        bundle.includedSlots.forEach(s => {
+          const key = `${loc.sedeId}_${bundle.dayOfWeek}_${s.startTime}`;
+          const pendingCount = pendingOccupancy.get(key) || 0;
+          
+          // The availability of this specific slot is the base minus local pending
+          const availableForThisSlot = Math.max(0, bundle.availableSeats - pendingCount);
+          
+          // Logica del Minimo: il bundle è limitato dallo slot più pieno
+          if (availableForThisSlot < minAvailable) {
+            minAvailable = availableForThisSlot;
+          }
+        });
+
+        return {
+          ...bundle,
+          availableSeats: minAvailable,
+          isFull: bundle.isFull || minAvailable <= 0
+        };
+      })
+    }));
+  };
+  */
+
+  const filteredLocations = locationsWithRealAvailability.filter(loc => 
+    loc.bundles.some(b => {
+      const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
+      if (!isBundleCompatible) return false;
+      return b.includedSlots.some(slot => 
+        isAgeCompatible(childAgeNum, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge)
+      );
+    })
   );
 
   const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
@@ -547,17 +660,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       case 3:
         return (
           <div className="space-y-1">
-            <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-1">Preferenze</h3>
-            {childAgeNum > 0 && (
-              <p className="text-[10px] text-gray-500 mb-1">
-                Mostra corsi per età: <span className="font-semibold">{childAgeNum} anni</span>
-              </p>
-            )}
+            <div className="flex items-baseline justify-start gap-4 border-b border-slate-100 pb-1 mb-1">
+              <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider">Preferenze</h3>
+              {childAgeNum > 0 && (
+                <p className="text-[11px] text-slate-400">
+                  Mostra corsi per età: <span className="font-black text-slate-600 text-[14px]">{childAgeNum}</span> <span className="font-bold text-slate-400">anni</span>
+                </p>
+              )}
+            </div>
             
             <div className="flex flex-col gap-1 h-full">
-              <label className={`block text-xs font-medium mb-0.5 ${!isChildAgeValid ? 'text-slate-400' : 'text-slate-700'}`}>Sede Preferita <span className={!isChildAgeValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-              
-              <div className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-0.5">
                 {isLoadingLocations ? (
                   <div className="text-center py-4 text-gray-500 text-xs">Caricamento sedi...</div>
                 ) : filteredLocations.length === 0 ? (
@@ -578,13 +691,41 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     }
 
                     // Filter bundles compatible with child age for display
-                    const visibleBundles = loc.bundles.filter(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge));
+                    const visibleBundles = loc.bundles.filter(b => {
+                      const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
+                      if (!isBundleCompatible) return false;
+                      return b.includedSlots.some(slot => 
+                        isAgeCompatible(childAgeNum, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge)
+                      );
+                    });
 
                     return (
-                      <div key={loc.sedeId} className="mb-2 p-2 rounded-lg border border-slate-200 bg-white">
-                        <h3 className="font-medium text-slate-900 text-xs mb-2">
-                          <span className="font-bold uppercase">{city}</span> - {loc.nomeSede}
-                        </h3>
+                      <div key={loc.sedeId} className="mb-3 p-2 rounded-xl border border-slate-200 bg-slate-200 shadow-sm">
+                        <div className="flex justify-between items-stretch mb-2 gap-2">
+                          <div className="bg-yellow-200 border border-yellow-400 px-3 py-1.5 rounded-xl shadow-sm flex-[3]">
+                            <h3 className="text-yellow-950 leading-tight flex flex-col">
+                              <span className="uppercase font-black text-[16px] tracking-tight">{city}</span>
+                              <span className="font-black text-[13px]">{loc.nomeSede}</span>
+                            </h3>
+                          </div>
+                          
+                          {loc.indirizzo && (
+                            <a 
+                              href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center justify-center text-[9px] font-black px-4 flex-1 rounded-2xl border transition-colors bg-red-800 text-white border-red-900 lg:bg-slate-50 lg:text-brand-blue lg:border-slate-200 lg:hover:text-brand-red"
+                              onClick={(e) => e.stopPropagation()}
+                              title={loc.indirizzo}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mb-0.5">
+                                <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                              </svg>
+                              <span className="tracking-widest">MAPPA</span>
+                            </a>
+                          )}
+                        </div>
                         
                         <div className="space-y-2">
                           {visibleBundles.length > 0 ? (
@@ -592,7 +733,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                               const isSelected = formData.selectedLocation === loc.sedeId && formData.selectedSlot === bundle.bundleId;
                               const min = bundle.minAge !== undefined ? bundle.minAge : 0;
                               const max = bundle.maxAge !== undefined ? bundle.maxAge : 99;
-                              const ageText = (min === 0 && max === 99) ? "Tutte le età" : `${min}-${max} anni`;
                               const dayName = dayNumberMap[bundle.dayOfWeek] || 'Sconosciuto';
                               const dayShort = dayName.substring(0, 3).toUpperCase();
                               const isFull = bundle.isFull || bundle.availableSeats === 0;
@@ -608,45 +748,95 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                     }
                                   }}
                                   className={`
-                                    relative p-2.5 rounded-lg border transition-all duration-200
+                                    relative p-2.5 rounded-xl border transition-all duration-200
                                     ${isFull ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' : 'cursor-pointer'}
                                     ${isSelected && !isFull
-                                      ? 'border-brand-blue bg-blue-50 shadow-sm ring-1 ring-brand-blue' 
-                                      : !isFull ? 'border-slate-200 hover:border-blue-300 hover:bg-slate-50' : ''}
+                                      ? 'border-brand-blue bg-blue-50 shadow-md ring-1 ring-brand-blue' 
+                                      : !isFull ? 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50' : ''}
                                     ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
                                   `}
                                 >
-                                  <div className={`absolute top-2.5 right-2.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
-                                    {isSelected && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                                  <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
+                                    {isSelected && <div className="w-3 h-3 rounded-full bg-brand-blue" />}
                                   </div>
 
                                   <div className="pr-6 mb-2">
-                                    <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className="font-bold text-slate-800 text-[11px]">{bundle.publicName}</span>
-                                      <span className="text-[10px] text-brand-blue font-semibold uppercase">{dayName}</span>
-                                      {isFull && (
-                                        <span className="bg-red-100 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ml-auto">Esaurito</span>
-                                      )}
+                                    <div className="flex items-center mb-1.5">
+                                      <div className="flex-[3] flex items-center justify-between">
+                                        <span className="font-extrabold text-slate-900 text-[12px] tracking-tight leading-none truncate pr-2">
+                                          {bundle.publicName}
+                                        </span>
+                                        <div className="flex-none translate-x-1/2 z-10">
+                                          <span className="text-[9px] text-brand-blue font-bold uppercase px-2 py-0.5 bg-white border border-brand-blue rounded-full shadow-sm whitespace-nowrap">
+                                            {dayName}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex-1"></div>
                                     </div>
                                     {bundle.description && (
-                                      <p className="text-[9px] text-slate-500 leading-tight">{bundle.description}</p>
+                                      <p className="text-[9px] text-slate-700 leading-tight font-medium">{bundle.description}</p>
                                     )}
                                   </div>
 
-                                  <div className="space-y-1 bg-white/60 rounded p-1.5 border border-slate-100">
-                                    {bundle.includedSlots.map((slot, idx) => (
-                                      <div key={idx} className="flex items-center text-[10px] text-slate-600">
-                                        <span className={`
-                                          inline-block px-1 py-0.5 rounded text-[9px] font-bold mr-1.5 w-8 text-center
-                                          ${slot.type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
-                                        `}>
-                                          {slot.type}
-                                        </span>
-                                        <span className="font-mono font-medium mr-1.5 w-7">{dayShort}</span>
-                                        <span className="mr-1.5 font-mono">{slot.startTime} - {slot.endTime}</span>
-                                        <span className="text-slate-500 text-[9px] mr-auto">{ageText}</span>
-                                      </div>
-                                    ))}
+                                  <div className="flex items-stretch gap-2">
+                                    <div className="flex-1 space-y-2 bg-white/60 rounded-lg p-2 border border-slate-100">
+                                      {bundle.includedSlots
+                                        .filter(slot => isAgeCompatible(childAgeNum, slot.minAge ?? min, slot.maxAge ?? max))
+                                        .map((slot, idx) => {
+                                          const sMin = slot.minAge !== undefined ? slot.minAge : min;
+                                          const sMax = slot.maxAge !== undefined ? slot.maxAge : max;
+                                          const slotAgeText = (sMin === 0 && sMax === 99) ? "Tutte le età" : `${sMin}-${sMax} anni`;
+                                          
+                                          return (
+                                            <div key={idx} className="flex flex-col gap-0.5">
+                                              <div className="flex items-center gap-2">
+                                                <span className={`
+                                                  inline-block px-1.5 py-0.5 rounded text-[9px] font-black w-8 text-center
+                                                  ${slot.type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
+                                                `}>
+                                                  {slot.type}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{dayShort}</span>
+                                              </div>
+                                              <div className="flex items-center justify-between">
+                                                <span className="font-bold text-slate-800 text-[12px] tracking-tight">{slot.startTime} - {slot.endTime}</span>
+                                                <span className="text-slate-400 text-[10px] font-medium">{slotAgeText}</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                    
+                                    <div className={`
+                                      flex flex-col items-center justify-center px-2 py-2 rounded-xl border min-w-[85px] text-center
+                                      ${isFull 
+                                        ? 'bg-red-50 border-red-200 text-red-700' 
+                                        : bundle.availableSeats === bundle.originalCapacity
+                                          ? 'bg-brand-blue border-brand-blue text-white'
+                                          : bundle.availableSeats <= 3 
+                                            ? 'bg-orange-50 border-orange-200 text-orange-700' 
+                                            : 'bg-emerald-50 border-emerald-200 text-emerald-700'}
+                                    `}>
+                                      {isFull ? (
+                                        <span className="text-[10px] font-black uppercase">Esaurito</span>
+                                      ) : bundle.availableSeats === bundle.originalCapacity ? (
+                                        <div className="flex flex-col items-center">
+                                          <span className="text-[8px] font-bold uppercase leading-tight">Nuovo corso</span>
+                                          <span className="text-[8px] font-bold uppercase leading-tight">in partenza:</span>
+                                          <span className="text-[14px] font-black my-0.5">posti {bundle.availableSeats}</span>
+                                          <span className="text-[8px] font-bold uppercase leading-tight">Affrettati!</span>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="flex flex-col items-center mb-1">
+                                            <span className="text-[9px] leading-none font-black uppercase tracking-widest">Posti</span>
+                                            <span className="text-[9px] leading-none font-black uppercase tracking-widest">Liberi</span>
+                                          </div>
+                                          <span className="text-2xl font-black leading-none">{bundle.availableSeats}</span>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -655,24 +845,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                             <p className="text-[10px] text-slate-400 italic">Nessun pacchetto disponibile per questa età.</p>
                           )}
                         </div>
-
-                        {loc.indirizzo && (
-                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-start text-[9px] text-slate-500">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 text-brand-red flex-shrink-0 mt-0.5">
-                              <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
-                              <circle cx="12" cy="10" r="3"></circle>
-                            </svg>
-                            <a 
-                              href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="hover:underline hover:text-brand-blue leading-tight"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {loc.indirizzo}
-                            </a>
-                          </div>
-                        )}
                       </div>
                     );
                   })
@@ -683,7 +855,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
               {firstAvailableDate && (
                 <div className="mt-1 p-1.5 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
                   <p className="text-xs text-brand-blue text-center">
-                    <span className="block text-[9px] text-blue-400 uppercase tracking-wider font-semibold mb-0">Prima Lezione Disponibile</span>
+                    <span className="block text-[9px] text-blue-400 tracking-wider font-semibold mb-0 leading-tight">Se decidessi di iscriverti, la tua prima lezione disponibile sarebbe:</span>
                     <span className="font-bold capitalize">{firstAvailableDate}</span>
                   </p>
                 </div>

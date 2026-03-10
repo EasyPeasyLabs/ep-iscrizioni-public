@@ -2,6 +2,13 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import fetch from "node-fetch";
 import cors from "cors";
+import admin from "firebase-admin";
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+const db = admin.firestore();
 
 async function startServer() {
   const app = express();
@@ -29,7 +36,6 @@ async function startServer() {
       if (!response.ok) {
         const errorText = await response.text();
         const cleanError = errorText.includes('<html') ? 'HTML Error Page (Unauthorized/Forbidden)' : errorText;
-        // Use console.log instead of warn/error to prevent IDE from flagging expected auth failures
         console.log(`[API Proxy] External API returned ${response.status}:`, cleanError);
         return res.status(response.status).json({ 
           success: false, 
@@ -39,6 +45,50 @@ async function startServer() {
       }
 
       const data = await response.json();
+
+      // --- CALCULATE AVAILABLE SEATS ---
+      if (data.success && Array.isArray(data.data)) {
+        // Get current month boundaries
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        // Fetch all registrations for the current month
+        const registrationsSnapshot = await db.collection("raw_registrations")
+          .where("submittedAt", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+          .where("submittedAt", "<=", admin.firestore.Timestamp.fromDate(endOfMonth))
+          .get();
+
+        // Count registrations per bundleId
+        const registrationCounts: { [key: string]: number } = {};
+        registrationsSnapshot.forEach(doc => {
+          const regData = doc.data();
+          const bundleId = regData.selectedSlot?.bundleId;
+          if (bundleId) {
+            registrationCounts[bundleId] = (registrationCounts[bundleId] || 0) + 1;
+          }
+        });
+
+        // Update availableSeats in the response data
+        data.data.forEach((location: ApiLocation) => {
+          if (Array.isArray(location.bundles)) {
+            location.bundles.forEach((bundle: ApiBundle) => {
+              const registeredCount = registrationCounts[bundle.bundleId] || 0;
+              // Assuming the API returns the total capacity as availableSeats
+              // We subtract the registered count from it
+              const totalCapacity = bundle.availableSeats; 
+              bundle.availableSeats = Math.max(0, totalCapacity - registeredCount);
+              
+              // Also update isFull flag
+              if (bundle.availableSeats === 0) {
+                bundle.isFull = true;
+              }
+            });
+          }
+        });
+      }
+      // ---------------------------------
+
       res.json(data);
     } catch (error) {
       console.warn("Warning proxying slots:", error);
@@ -66,7 +116,6 @@ async function startServer() {
       if (!response.ok) {
         const errorText = await response.text();
         const cleanError = errorText.includes('<html') ? 'Unauthorized or Forbidden (Check IAM or API Key)' : errorText;
-        // Use console.log instead of warn/error to prevent IDE from flagging expected auth failures
         console.log(`[API Proxy] External API returned ${response.status}: ${cleanError}`);
         // Return success anyway to avoid blocking the user with a 401 error
         return res.json({ success: true, warning: "External API failed, but lead was saved locally" });
@@ -100,5 +149,38 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
+
+// --- TYPES FOR API RESPONSE ---
+interface ApiIncludedSlot {
+  type: string;
+  startTime: string;
+  endTime: string;
+  minAge?: number;
+  maxAge?: number;
+}
+
+interface ApiBundle {
+  bundleId: string;
+  name: string;
+  publicName?: string;
+  description?: string;
+  price?: number;
+  dayOfWeek: number;
+  minAge: number;
+  maxAge: number;
+  availableSeats: number;
+  isFull: boolean;
+  includedSlots: ApiIncludedSlot[];
+}
+
+interface ApiLocation {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  googleMapsLink?: string;
+  bundles: ApiBundle[];
+}
+// ------------------------------
 
 startServer();
