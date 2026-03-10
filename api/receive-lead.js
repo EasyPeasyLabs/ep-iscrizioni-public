@@ -4,9 +4,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Read the secure key from environment variables (Vercel)
-    // Fallback to the hardcoded key ONLY for local development if env var is missing
-    const BRIDGE_SECURE_KEY = process.env.BRIDGE_SECURE_KEY || "EP_V1_BRIDGE_SECURE_KEY_8842_XY";
+    // Read the secure key from environment variables
+    const BRIDGE_SECURE_KEY = process.env.BRIDGE_SECURE_KEY;
+    if (!BRIDGE_SECURE_KEY) {
+      console.warn("CRITICAL WARNING: Missing BRIDGE_SECURE_KEY environment variable. API calls will fail.");
+      return res.status(500).json({ success: false, error: "Internal Server Error: Configuration missing" });
+    }
     
     const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead", {
       method: "POST",

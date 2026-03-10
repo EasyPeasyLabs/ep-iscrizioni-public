@@ -131,6 +131,12 @@ const getNextDateString = (dayName: string): string | null => {
 
 const PUBLIC_SLOTS_URL = "/api/slots";
 
+// -- CIRCUIT BREAKER STATE (Module level to survive remounts) --
+let fetchSlotsFailures = 0;
+let circuitOpenUntil = 0;
+const MAX_FAILURES = 3;
+const COOLDOWN_MS = 60000; // 60 seconds
+
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
     nome: '',
@@ -161,6 +167,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   // Fetch available slots
   useEffect(() => {
     const fetchSlots = async () => {
+      // Circuit Breaker Check
+      if (Date.now() < circuitOpenUntil) {
+        console.warn("Circuit breaker open. Skipping fetch slots to prevent network spam.");
+        setGlobalError("Servizio temporaneamente non disponibile. Riprova più tardi.");
+        return;
+      }
+
       setIsLoadingLocations(true);
       try {
         const response = await fetch(PUBLIC_SLOTS_URL, {
@@ -170,9 +183,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           }
         });
         
-        if (!response.ok) throw new Error("Failed to fetch slots");
+        if (!response.ok) throw new Error(`Failed to fetch slots: ${response.status}`);
         
         const apiResponse: ApiResponse = await response.json();
+        
+        // Reset circuit breaker on success
+        fetchSlotsFailures = 0;
         
         if (apiResponse.success && Array.isArray(apiResponse.data)) {
           const mappedLocations: Location[] = apiResponse.data.map((loc) => ({
@@ -200,7 +216,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           throw new Error("Invalid response format");
         }
       } catch (error) {
-        console.error("Error fetching slots:", error);
+        fetchSlotsFailures++;
+        if (fetchSlotsFailures >= MAX_FAILURES) {
+          circuitOpenUntil = Date.now() + COOLDOWN_MS;
+          console.warn(`Circuit breaker tripped! Pausing requests for ${COOLDOWN_MS / 1000} seconds.`);
+        }
+        // Downgraded to warn to prevent IDE from treating this as a fatal crash loop
+        console.warn("Warning fetching slots:", error);
         setGlobalError("Impossibile caricare le disponibilità. Riprova più tardi.");
       } finally {
         setIsLoadingLocations(false);
