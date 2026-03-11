@@ -21,7 +21,7 @@ try {
         })
       });
     } else {
-      admin.initializeApp();
+      console.warn("No Firebase Admin credentials found in environment variables. Skipping admin initialization.");
     }
   }
 } catch (e) {
