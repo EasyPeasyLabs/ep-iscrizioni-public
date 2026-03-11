@@ -2,13 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import fetch from "node-fetch";
 import cors from "cors";
-import admin from "firebase-admin";
-
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-const db = admin.firestore();
 
 async function startServer() {
   const app = express();
@@ -45,54 +38,12 @@ async function startServer() {
       }
 
       const data = await response.json();
-
-      // --- CALCULATE AVAILABLE SEATS ---
-      if (data.success && Array.isArray(data.data)) {
-        // Get current month boundaries
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-        // Fetch all registrations for the current month
-        const registrationsSnapshot = await db.collection("raw_registrations")
-          .where("submittedAt", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
-          .where("submittedAt", "<=", admin.firestore.Timestamp.fromDate(endOfMonth))
-          .get();
-
-        // Count registrations per bundleId
-        const registrationCounts: { [key: string]: number } = {};
-        registrationsSnapshot.forEach(doc => {
-          const regData = doc.data();
-          const bundleId = regData.selectedSlot?.bundleId;
-          if (bundleId) {
-            registrationCounts[bundleId] = (registrationCounts[bundleId] || 0) + 1;
-          }
-        });
-
-        // Update availableSeats in the response data
-        data.data.forEach((location: ApiLocation) => {
-          if (Array.isArray(location.bundles)) {
-            location.bundles.forEach((bundle: ApiBundle) => {
-              const registeredCount = registrationCounts[bundle.bundleId] || 0;
-              // Assuming the API returns the total capacity as availableSeats
-              // We subtract the registered count from it
-              const totalCapacity = bundle.availableSeats; 
-              bundle.availableSeats = Math.max(0, totalCapacity - registeredCount);
-              
-              // Also update isFull flag
-              if (bundle.availableSeats === 0) {
-                bundle.isFull = true;
-              }
-            });
-          }
-        });
-      }
-      // ---------------------------------
-
-      res.json(data);
+      
+      // Temporary: just return the data to see if it already has availableSeats
+      return res.json(data);
     } catch (error) {
       console.warn("Warning proxying slots:", error);
-      res.status(500).json({ success: false, error: "Failed to fetch slots from external API" });
+      res.status(500).json({ success: false, error: "Failed to fetch slots from external API", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
