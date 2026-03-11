@@ -437,7 +437,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         parentPhone: formData.telefono,
         childName: formData.childName, 
         childAge: formData.childAge,
-        selectedLocation: formData.selectedLocation,
+        selectedLocation: locationName,
         selectedSlot: payloadDati.selectedSlot,
         notes: `Selected Bundle: ${bundleName}. Lead from Public Landing Page (Full Flow)`,
         status: "new",
