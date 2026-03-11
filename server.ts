@@ -7,7 +7,22 @@ import admin from "firebase-admin";
 // Initialize Firebase Admin for local dev (if credentials are provided)
 try {
   if (!admin.apps.length) {
-    admin.initializeApp();
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } else if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        })
+      });
+    } else {
+      admin.initializeApp();
+    }
   }
 } catch (e) {
   console.warn("Could not initialize firebase-admin locally. Available seats calculation might fail.");

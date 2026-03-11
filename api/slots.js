@@ -2,9 +2,28 @@ import admin from "firebase-admin";
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  admin.initializeApp();
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } else if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        })
+      });
+    } else {
+      admin.initializeApp();
+    }
+  } catch (e) {
+    console.warn("Firebase admin initialization warning:", e);
+  }
 }
-const db = admin.firestore();
+const db = admin.apps.length ? admin.firestore() : null;
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -44,6 +63,9 @@ export default async function handler(req, res) {
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
       try {
+        if (!db) {
+          throw new Error("Firestore database not initialized");
+        }
         // Fetch all registrations for the current month
         const registrationsSnapshot = await db.collection("raw_registrations")
           .where("submittedAt", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
