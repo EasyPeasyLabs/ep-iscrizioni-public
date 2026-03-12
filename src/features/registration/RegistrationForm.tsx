@@ -415,6 +415,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         childAge: parseInt(formData.childAge) || 0,
         locationId: formData.selectedLocation,
         locationName: locationName,
+        selectedLocation: locationName,
         selectedSlot: {
           bundleId: selectedBundle?.bundleId,
           bundleName: bundleName,
