@@ -56,6 +56,15 @@ export default async function handler(req, res) {
     const data = await response.json();
     
     // --- CALCULATE AVAILABLE SEATS ---
+    let debugInfo = {
+      dbInitialized: !!db,
+      queryAttempted: false,
+      querySuccess: false,
+      registrationsFound: 0,
+      registrationCounts: {},
+      error: null
+    };
+
     if (data.success && Array.isArray(data.data)) {
       // Get current month boundaries
       const now = new Date();
@@ -66,11 +75,16 @@ export default async function handler(req, res) {
         if (!db) {
           throw new Error("Firestore database not initialized");
         }
+        debugInfo.queryAttempted = true;
+        
         // Fetch all registrations for the current month
         const registrationsSnapshot = await db.collection("raw_registrations")
           .where("submittedAt", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
           .where("submittedAt", "<=", admin.firestore.Timestamp.fromDate(endOfMonth))
           .get();
+
+        debugInfo.querySuccess = true;
+        debugInfo.registrationsFound = registrationsSnapshot.size;
 
         // Count registrations per bundleId
         const registrationCounts = {};
@@ -81,6 +95,8 @@ export default async function handler(req, res) {
             registrationCounts[bundleId] = (registrationCounts[bundleId] || 0) + 1;
           }
         });
+        
+        debugInfo.registrationCounts = registrationCounts;
 
         // Update availableSeats in the response data
         data.data.forEach((location) => {
@@ -98,13 +114,17 @@ export default async function handler(req, res) {
         });
       } catch (calcError) {
         console.warn("Could not calculate available seats from raw_registrations:", calcError);
+        debugInfo.error = calcError.message || String(calcError);
         // Continue without subtracting if there's a permission/db error
       }
     }
     // ---------------------------------
 
-    // Set cache headers (e.g., cache for 5 minutes)
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+    // Attach debug info to the response
+    data._debug = debugInfo;
+
+    // Temporarily disable cache for debugging
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json(data);
   } catch (error) {
     console.warn("Warning fetching slots:", error);
