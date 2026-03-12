@@ -832,35 +832,54 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         })}
                                     </div>
                                     
-                                    <div className={`
-                                      flex flex-col items-center justify-center px-2 py-2 rounded-xl border min-w-[85px] text-center
-                                      ${isFull 
-                                        ? 'bg-red-50 border-red-200 text-red-700' 
-                                        : bundle.availableSeats === bundle.originalCapacity
-                                          ? 'bg-brand-blue border-brand-blue text-white'
-                                          : bundle.availableSeats <= 3 
-                                            ? 'bg-orange-50 border-orange-200 text-orange-700' 
-                                            : 'bg-emerald-50 border-emerald-200 text-emerald-700'}
-                                    `}>
-                                      {isFull ? (
-                                        <span className="text-[10px] font-black uppercase">Esaurito</span>
-                                      ) : bundle.availableSeats === bundle.originalCapacity ? (
-                                        <div className="flex flex-col items-center">
-                                          <span className="text-[8px] font-bold uppercase leading-tight">Nuovo corso</span>
-                                          <span className="text-[8px] font-bold uppercase leading-tight">in partenza:</span>
-                                          <span className="text-[14px] font-black my-0.5">posti {bundle.availableSeats}</span>
-                                          <span className="text-[8px] font-bold uppercase leading-tight">Affrettati!</span>
-                                        </div>
-                                      ) : (
-                                        <>
+                                    {(() => {
+                                      const seats = isFull ? 0 : bundle.availableSeats;
+                                      let badgeBg = '';
+                                      let badgeTextCol = 'text-white';
+                                      let topText = 'posti disponibili:';
+                                      let bottomText = '';
+                                      let bottomTextSize = 'text-2xl';
+
+                                      if (seats === 0) {
+                                        badgeBg = '#C0C0C0';
+                                        bottomText = 'ESAURITI';
+                                        bottomTextSize = 'text-[12px]';
+                                      } else if (seats === 1) {
+                                        badgeBg = '#FF0000';
+                                        bottomText = '1';
+                                      } else if (seats === 2) {
+                                        badgeBg = '#FF8C00';
+                                        bottomText = '2';
+                                      } else if (seats === 3) {
+                                        badgeBg = '#FFFF00';
+                                        badgeTextCol = 'text-slate-900';
+                                        bottomText = '3';
+                                      } else if (seats === 4 || seats === 5) {
+                                        badgeBg = '#32CD32';
+                                        bottomText = seats.toString();
+                                      } else {
+                                        badgeBg = '#191970';
+                                        topText = 'Nuovo corso in partenza!';
+                                        bottomText = 'Procedi per essere ricontattat*';
+                                        bottomTextSize = 'text-[9px]';
+                                      }
+
+                                      return (
+                                        <div 
+                                          className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl min-w-[90px] max-w-[90px] text-center shadow-sm ${badgeTextCol}`}
+                                          style={{ backgroundColor: badgeBg }}
+                                        >
                                           <div className="flex flex-col items-center mb-1">
-                                            <span className="text-[9px] leading-none font-black uppercase tracking-widest">Posti</span>
-                                            <span className="text-[9px] leading-none font-black uppercase tracking-widest">Liberi</span>
+                                            <span className="text-[8px] leading-tight font-bold uppercase text-center">
+                                              {topText}
+                                            </span>
                                           </div>
-                                          <span className="text-2xl font-black leading-none">{bundle.availableSeats}</span>
-                                        </>
-                                      )}
-                                    </div>
+                                          <span className={`${bottomTextSize} font-black leading-none text-center`}>
+                                            {bottomText}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               );
