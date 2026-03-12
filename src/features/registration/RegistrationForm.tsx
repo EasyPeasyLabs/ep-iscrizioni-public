@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -171,6 +171,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [infoModalContent, setInfoModalContent] = useState<{title: string, description: string} | null>(null);
 
   const prevCountRef = useRef(0);
 
@@ -703,7 +704,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     return (
                       <div key={loc.sedeId} className="mb-3 p-2 rounded-xl border border-slate-200 bg-slate-200 shadow-sm">
                         <div className="flex justify-between items-stretch mb-2 gap-2">
-                          <div className="bg-yellow-200 border border-yellow-400 px-3 py-1.5 rounded-xl shadow-sm flex-[3]">
+                          <div className="bg-yellow-200 border border-yellow-400 px-3 py-1.5 rounded-xl shadow-sm flex-[3] flex items-center gap-3">
+                            <Home className="w-8 h-8 text-yellow-950 flex-shrink-0" fill="white" strokeWidth={2} />
                             <h3 className="text-yellow-950 leading-tight flex flex-col">
                               <span className="uppercase font-black text-[16px] tracking-tight">{city}</span>
                               <span className="font-black text-[13px]">{loc.nomeSede}</span>
@@ -757,27 +759,48 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                     ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
                                   `}
                                 >
-                                  <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-brand-blue' : 'border-slate-300'}`}>
-                                    {isSelected && <div className="w-3 h-3 rounded-full bg-brand-blue" />}
-                                  </div>
-
-                                  <div className="pr-6 mb-2">
-                                    <div className="flex items-center mb-1.5">
-                                      <div className="flex-[3] flex items-center justify-between">
-                                        <span className="font-extrabold text-slate-900 text-[12px] tracking-tight leading-none truncate pr-2">
-                                          {bundle.publicName}
-                                        </span>
-                                        <div className="flex-none translate-x-1/2 z-10">
-                                          <span className="text-[9px] text-brand-blue font-bold uppercase px-2 py-0.5 bg-white border border-brand-blue rounded-full shadow-sm whitespace-nowrap">
-                                            {dayName}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <div className="flex-1"></div>
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-extrabold text-brand-blue text-lg tracking-tight leading-none">
+                                        {bundle.publicName}
+                                      </span>
+                                      <span className="text-[10px] text-brand-blue font-bold uppercase px-2 py-0.5 bg-white border border-brand-blue rounded-full shadow-sm whitespace-nowrap">
+                                        {dayName}
+                                      </span>
                                     </div>
-                                    {bundle.description && (
-                                      <p className="text-[9px] text-slate-700 leading-tight font-medium">{bundle.description}</p>
-                                    )}
+                                    
+                                    <div className="flex items-center gap-2">
+                                      {bundle.description && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setInfoModalContent({ title: bundle.publicName || bundle.name, description: bundle.description || '' });
+                                          }}
+                                          className="w-8 h-8 rounded-full border-[2.5px] border-[#2b71b8] flex items-center justify-center text-[#2b71b8] hover:bg-blue-50 transition-colors bg-white shadow-sm"
+                                        >
+                                          <span className="font-serif italic font-bold text-xl leading-none" style={{ fontFamily: 'Georgia, serif' }}>i</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isChildAgeValid && !isFull) {
+                                            setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
+                                            if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
+                                            if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
+                                          }
+                                        }}
+                                        className={`px-3 py-1 rounded-lg border-2 text-sm font-bold transition-colors ${
+                                          isSelected 
+                                            ? 'bg-green-600 border-green-600 text-white' 
+                                            : 'bg-white border-green-600 text-green-600 hover:bg-green-50'
+                                        }`}
+                                      >
+                                        seleziona
+                                      </button>
+                                    </div>
                                   </div>
 
                                   <div className="flex items-stretch gap-2">
@@ -1001,6 +1024,31 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           </div>
         </div>
       </Modal>
+
+      {/* Info Modal */}
+      {infoModalContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <h3 className="text-xl font-extrabold text-brand-blue mb-3">
+                {infoModalContent.title}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                {infoModalContent.description}
+              </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setInfoModalContent(null)}
+                  className="px-5 py-2 bg-brand-blue text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  Ho capito
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
