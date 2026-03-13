@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: "Internal Server Error: Configuration missing" });
     }
     
-    const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLeadV2", {
+    const response = await fetch("https://receiveleadv2-7wnvtld3xq-ew.a.run.app", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
