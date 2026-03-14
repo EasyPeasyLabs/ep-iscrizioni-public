@@ -33,7 +33,7 @@ interface RegistrationData {
  * Configuration for the external Gestionale V1 Bridge
  */
 const GESTIONALE_CONFIG = {
-  ENDPOINT: "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead",
+  ENDPOINT: "https://receiveleadv2-7wnvtld3xq-ew.a.run.app",
   AUTH_KEY: "EP_V1_BRIDGE_SECURE_KEY_8842_XY"
 };
 

@@ -7,7 +7,7 @@ admin.initializeApp();
 // Impostiamo la regione globale per tutte le funzioni (deve coincidere con la regione del database Firestore)
 setGlobalOptions({ region: "europe-west1" });
 
-const GESTIONALE_API_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/receiveLead";
+const GESTIONALE_API_URL = "https://receiveleadv2-7wnvtld3xq-ew.a.run.app";
 const BRIDGE_SECURE_KEY = "EP_V1_BRIDGE_SECURE_KEY_8842_XY";
 
 export const syncRegistrationToGestionale = onDocumentCreated(
