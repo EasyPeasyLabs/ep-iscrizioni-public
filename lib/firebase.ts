@@ -15,6 +15,7 @@ let dbInstance;
 let serverTimestampInstance;
 
 try {
+  /*
   // Initialize Firebase
   // Use compat syntax: firebase.initializeApp
   app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
@@ -23,6 +24,9 @@ try {
   dbInstance = app.firestore();
   serverTimestampInstance = firebase.firestore.FieldValue.serverTimestamp;
   console.log("Firebase initialized successfully");
+  */
+  dbInstance = null;
+  serverTimestampInstance = () => new Date();
 } catch (error) {
   console.error("CRITICAL: Firebase initialization failed:", error);
   // Fallback to prevent app crash, but functionality will be broken

@@ -176,6 +176,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const prevCountRef = useRef(0);
 
   // Fetch pending registrations from local Firestore to account for real-time occupancy
+  /*
   useEffect(() => {
     if (!db) return;
     
@@ -190,6 +191,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       
     return () => unsubscribe();
   }, []);
+  */
 
   // Fetch available slots
   useEffect(() => {
@@ -432,6 +434,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
       // 2. Save backup to local Firebase FIRST (Project B)
       let docRef = null;
+      /*
       const leadData = {
         parentFirstName: formData.nome,
         parentLastName: formData.cognome,
@@ -455,6 +458,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       } else {
         console.warn("Database locale non inizializzato, backup saltato.");
       }
+      */
 
       // 3. Send to Gestionale (Project A) via local Vercel API
       try {

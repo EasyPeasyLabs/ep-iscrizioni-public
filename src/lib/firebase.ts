@@ -15,10 +15,14 @@ let dbInstance;
 let serverTimestampInstance;
 
 try {
+  /*
   app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
   dbInstance = app.firestore();
   serverTimestampInstance = firebase.firestore.FieldValue.serverTimestamp;
   console.log("Firebase initialized successfully");
+  */
+  dbInstance = null;
+  serverTimestampInstance = () => new Date();
 } catch (error) {
   console.error("CRITICAL: Firebase initialization failed:", error);
   dbInstance = null;
