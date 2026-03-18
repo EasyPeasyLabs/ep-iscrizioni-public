@@ -164,3 +164,25 @@ L'ecosistema è diviso in due progetti Firebase distinti per sicurezza (Isolatio
 
 *Documentazione aggiornata al 16 Marzo 2026 (Notte).*
 
+---
+
+## 6. Interventi Eseguiti (Analisi Architetturale - 18.03.2026)
+
+### Analisi dell'Ecosistema Firebase
+- Mappato il flusso dati tra i 3 progetti: **Progetto A** (ep-v1-gestionale), **Progetto B** (ep-iscrizioni-public-main), **Progetto C** (ep-portal)
+- Identificate due Cloud Functions che innescano l'invio dei lead:
+  - `syncRegistrationToGestionale` (trigger: `raw_registrations/{docId}` created)
+  - `forwardLeadToCrm` (trigger: `registrations/{docId}` created)
+
+### Problematiche Rilevate
+1. **Duplicazione Lead:** Due trigger separati possono generare richieste multiple allo stesso lead
+2. **Inconsistenza Regione:** `forwardLeadToCrm` esegue in `us-central1` mentre le altre funzioni in `europe-west1`
+
+### Azioni Intraprese
+1. Tentativo di migrazione regione per `forwardLeadToCrm` → revertito per problemi di deployment (cache Cloud Build)
+2. Le funzioni continuano a funzionare normalmente nella configurazione attuale
+
+### Note
+Il sistema continua a funzionare correttamente nonostante l'inconsistenza di regione. L'impatto è minimo (maggior latenza di ~10-20ms).
+
+
