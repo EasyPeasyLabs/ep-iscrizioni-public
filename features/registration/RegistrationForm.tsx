@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { db, serverTimestamp } from '../../lib/firebase';
+import { db, serverTimestamp, collection, addDoc } from '../../lib/firebase';
 
 // -- TYPES --
 interface Slot {
@@ -289,7 +289,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         throw new Error("Database connection not initialized");
       }
 
-      await db.collection("raw_registrations").add(leadData);
+      await addDoc(collection(db, "raw_registrations"), leadData);
 
       if (onSuccess) {
         onSuccess();
