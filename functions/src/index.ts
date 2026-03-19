@@ -2,7 +2,12 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
 
-admin.initializeApp();
+function getAdmin() {
+  if (admin.apps.length === 0) {
+      admin.initializeApp();
+  }
+  return admin;
+}
 
 // Impostiamo la regione globale per tutte le funzioni (deve coincidere con la regione del database Firestore)
 setGlobalOptions({ region: "europe-west1" });
@@ -49,20 +54,22 @@ export const syncRegistrationToGestionale = onDocumentCreated(
 
       console.log(`[syncRegistrationToGestionale] Sincronizzazione completata con successo per docId: ${docId}`);
 
+      const firebaseAdmin = getAdmin();
       // Aggiorniamo il documento locale in raw_registrations con lo stato di successo
       await snap.ref.update({
         syncStatus: "synced",
-        syncedAt: admin.firestore.FieldValue.serverTimestamp()
+        syncedAt: firebaseAdmin.firestore.FieldValue.serverTimestamp()
       });
 
     } catch (error: unknown) {
       console.error(`[syncRegistrationToGestionale] Fallimento sincronizzazione per docId: ${docId}`, error);
 
+      const firebaseAdmin = getAdmin();
       // Aggiorniamo il documento locale in raw_registrations con lo stato di errore
       await snap.ref.update({
         syncStatus: "failed",
         syncError: error instanceof Error ? error.message : "Errore sconosciuto durante la sincronizzazione HTTP",
-        failedAt: admin.firestore.FieldValue.serverTimestamp()
+        failedAt: firebaseAdmin.firestore.FieldValue.serverTimestamp()
       });
     }
   }

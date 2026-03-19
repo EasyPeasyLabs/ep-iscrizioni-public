@@ -110,7 +110,7 @@ const getNextDateString = (dayName: string): string | null => {
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlots";
+const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV2";
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -147,7 +147,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         const response = await fetch(PUBLIC_SLOTS_URL, {
           method: "GET",
           headers: {
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "Authorization": "Bearer EP_V1_BRIDGE_SECURE_KEY_8842_XY"
           }
         });
         

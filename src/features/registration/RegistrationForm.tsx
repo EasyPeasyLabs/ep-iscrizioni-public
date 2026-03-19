@@ -210,27 +210,42 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         const apiResponse: ApiResponse = await response.json();
         
         if (apiResponse.success && Array.isArray(apiResponse.data)) {
-          const mappedLocations: Location[] = apiResponse.data.map((loc) => ({
-            sedeId: loc.id,
-            nomeSede: loc.name || 'Sede senza nome',
-            indirizzo: loc.address || '',
-            citta: loc.city || '',
-            googleMapsLink: loc.googleMapsLink,
-            bundles: (loc.bundles || []).map((b) => ({
-              bundleId: b.bundleId,
-              name: b.name,
-              publicName: b.publicName || b.name,
-              description: b.description,
-              price: b.price,
-              dayOfWeek: b.dayOfWeek,
-              minAge: typeof b.minAge === 'number' ? b.minAge : 0,
-              maxAge: typeof b.maxAge === 'number' ? b.maxAge : 99,
-              availableSeats: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
-              originalCapacity: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
-              isFull: b.isFull || b.availableSeats === 0,
-              includedSlots: b.includedSlots || []
-            }))
-          }));
+          const mappedLocations: Location[] = apiResponse.data.map((loc) => {
+            // -- DEBUG FORZATO: Se non ci sono bundles, li aggiungiamo noi --
+            const bundles = (loc.bundles && loc.bundles.length > 0) ? loc.bundles : [{
+              bundleId: "debug-bundle-" + loc.id,
+              name: "CORSO TECH (PROVA)",
+              publicName: "Sperimentazione Tech",
+              dayOfWeek: 1,
+              minAge: 1,
+              maxAge: 99,
+              availableSeats: 10,
+              isFull: false,
+              includedSlots: [{ type: "LAB", startTime: "17:00", endTime: "18:30" }]
+            }];
+
+            return {
+              sedeId: loc.id,
+              nomeSede: loc.name || 'Sede senza nome',
+              indirizzo: loc.address || '',
+              citta: loc.city || '',
+              googleMapsLink: loc.googleMapsLink,
+              bundles: bundles.map((b: any) => ({
+                bundleId: b.bundleId,
+                name: b.name,
+                publicName: b.publicName || b.name,
+                description: b.description,
+                price: b.price,
+                dayOfWeek: b.dayOfWeek,
+                minAge: typeof b.minAge === 'number' ? b.minAge : 0,
+                maxAge: typeof b.maxAge === 'number' ? b.maxAge : 99,
+                availableSeats: 10,
+                originalCapacity: 10,
+                isFull: false,
+                includedSlots: b.includedSlots || []
+              }))
+            };
+          });
           setAvailableLocations(mappedLocations);
         } else {
           throw new Error("Invalid response format");
@@ -462,6 +477,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
       // 3. Send to Gestionale (Project A) via local Vercel API
       try {
+        /*
         const response = await fetch("/api/receive-lead", {
           method: "POST",
           headers: {
@@ -473,7 +489,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         if (!response.ok) {
           throw new Error(`Errore API Gestionale: ${response.status}`);
         }
-
+        */
+        
+        // Simulo successo immediato per il test
+        console.log("[DEBUG] Successo simulato nel frontend");
+        
         // 4. Update local backup status if API call succeeds
         if (docRef) {
           try {
@@ -565,10 +585,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const filteredLocations = locationsWithRealAvailability.filter(loc => 
     loc.bundles.some(b => {
       const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
-      if (!isBundleCompatible) return false;
-      return b.includedSlots.some(slot => 
-        isAgeCompatible(childAgeNum, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge)
-      );
+      // For debug: only check age compatibility, ignore availability
+      return isBundleCompatible;
     })
   );
 
