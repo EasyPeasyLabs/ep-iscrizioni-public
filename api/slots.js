@@ -36,3 +36,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, error: "Failed to fetch slots from external API" });
   }
 }
+
+// URL correction finalized
