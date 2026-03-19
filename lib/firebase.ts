@@ -4,7 +4,6 @@ import {
   collection,
   addDoc,
   serverTimestamp as firestoreServerTimestamp,
-  type Firestore,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -16,7 +15,8 @@ const firebaseConfig = {
   appId: "1:246216582684:web:8e016e5819ea8492e9e1d9",
 };
 
-let dbInstance: Firestore | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let dbInstance: any = null;
 
 try {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

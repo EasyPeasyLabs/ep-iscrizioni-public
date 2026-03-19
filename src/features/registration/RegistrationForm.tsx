@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { db, serverTimestamp } from '../../lib/firebase';
+// Firebase import reserved for future local backup (currently using server-side API)
 
 // -- TYPES --
 interface IncludedSlot {
@@ -169,7 +169,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   // Dynamic locations state
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
-  const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
+  const [pendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [infoModalContent, setInfoModalContent] = useState<{title: string, description: string} | null>(null);
 
@@ -446,6 +446,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         privacyAccepted: privacyAccepted,
         marketingAccepted: false
       };
+      void payloadDati; // reserved for API sync (currently server-side)
 
       // 2. Save backup to local Firebase FIRST (Project B)
       let docRef = null;
@@ -494,14 +495,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         // Simulo successo immediato per il test
         console.log("[DEBUG] Successo simulato nel frontend");
         
-        // 4. Update local backup status if API call succeeds
-        if (docRef) {
-          try {
-            await docRef.update({ syncStatus: "synced_to_gestionale" });
-          } catch {
-            console.warn("Impossibile aggiornare lo stato locale (permessi insufficienti), ma il lead è stato elaborato.");
-          }
-        }
+        // 4. Local backup update reserved for when Firebase save is re-enabled
       } catch (apiErr) {
         console.error("Errore sincronizzazione API (CORS o Rete):", apiErr);
         // Se il salvataggio locale è fallito E l'API è fallita, blocchiamo l'utente
