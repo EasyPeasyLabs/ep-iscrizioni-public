@@ -467,7 +467,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
       // 3. Send to Gestionale (Project A) via local Vercel API
       try {
-        /*
         const response = await fetch("/api/receive-lead", {
           method: "POST",
           headers: {
@@ -479,10 +478,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         if (!response.ok) {
           throw new Error(`Errore API Gestionale: ${response.status}`);
         }
-        */
-        
-        // Simulo successo immediato per il test
-        console.log("[DEBUG] Successo simulato nel frontend");
         
         // 4. Local backup update reserved for when Firebase save is re-enabled
       } catch (apiErr) {
@@ -864,9 +859,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         bottomText = seats.toString();
                                       } else {
                                         badgeBg = '#191970';
-                                        topText = 'Nuovo corso in partenza!';
-                                        bottomText = 'Procedi per essere ricontattat*';
-                                        bottomTextSize = 'text-[9px]';
+                                        bottomText = seats.toString();
                                       }
 
                                       return (
