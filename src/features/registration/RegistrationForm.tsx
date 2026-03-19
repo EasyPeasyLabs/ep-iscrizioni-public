@@ -492,6 +492,21 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
       if (onSuccess) {
         onSuccess();
+        // autoresetto dopo pochi secondi
+        setTimeout(() => {
+          setFormData({
+            nome: '',
+            cognome: '',
+            email: '',
+            telefono: '',
+            childName: '',
+            childAge: '',
+            selectedLocation: '',
+            selectedSlot: ''
+          });
+          setPrivacyAccepted(false);
+          setCurrentCard(0);
+        }, 5000);
       }
       
     } catch (err) {
@@ -798,7 +813,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                             : 'bg-white border-green-600 text-green-600 hover:bg-green-50'
                                         }`}
                                       >
-                                        seleziona
+                                        {isSelected ? 'OK' : 'seleziona'}
                                       </button>
                                     </div>
                                   </div>
@@ -858,8 +873,25 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         badgeBg = '#32CD32';
                                         bottomText = seats.toString();
                                       } else {
-                                        badgeBg = '#191970';
-                                        bottomText = seats.toString();
+                                        const occupied = bundle.originalCapacity - bundle.availableSeats;
+                                        
+                                        if (occupied === 0) {
+                                          badgeBg = '#191970';
+                                          topText = 'Nuovo corso in partenza!';
+                                          bottomText = 'Procedi per essere ricontattat*';
+                                          bottomTextSize = 'text-[9px]';
+                                        } else if (occupied === 1 || occupied === 2) {
+                                          badgeBg = '#FFFF00';
+                                          badgeTextCol = 'text-slate-900';
+                                          topText = 'ancora';
+                                          bottomText = `${bundle.availableSeats} posti disponibili`;
+                                          bottomTextSize = 'text-[10px]';
+                                        } else {
+                                          badgeBg = '#32CD32';
+                                          topText = 'ancora';
+                                          bottomText = `${bundle.availableSeats} posti disponibili`;
+                                          bottomTextSize = 'text-[10px]';
+                                        }
                                       }
 
                                       return (
