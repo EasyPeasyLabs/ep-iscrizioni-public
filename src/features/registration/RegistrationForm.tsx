@@ -211,18 +211,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         
         if (apiResponse.success && Array.isArray(apiResponse.data)) {
           const mappedLocations: Location[] = apiResponse.data.map((loc) => {
-            // -- DEBUG FORZATO: Se non ci sono bundles, li aggiungiamo noi --
-            const bundles = (loc.bundles && loc.bundles.length > 0) ? loc.bundles : [{
-              bundleId: "debug-bundle-" + loc.id,
-              name: "CORSO TECH (PROVA)",
-              publicName: "Sperimentazione Tech",
-              dayOfWeek: 1,
-              minAge: 1,
-              maxAge: 99,
-              availableSeats: 10,
-              isFull: false,
-              includedSlots: [{ type: "LAB", startTime: "17:00", endTime: "18:30" }]
-            }];
+            const bundles = loc.bundles || [];
 
             return {
               sedeId: loc.id,
@@ -239,9 +228,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 dayOfWeek: b.dayOfWeek,
                 minAge: typeof b.minAge === 'number' ? b.minAge : 0,
                 maxAge: typeof b.maxAge === 'number' ? b.maxAge : 99,
-                availableSeats: 10,
-                originalCapacity: 10,
-                isFull: false,
+                availableSeats: b.availableSeats || 0,
+                originalCapacity: b.originalCapacity || 10,
+                isFull: b.isFull || false,
                 includedSlots: b.includedSlots || []
               }))
             };
