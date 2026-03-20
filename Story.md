@@ -186,3 +186,5 @@ L'ecosistema è diviso in due progetti Firebase distinti per sicurezza (Isolatio
 Il sistema continua a funzionare correttamente nonostante l'inconsistenza di regione. L'impatto è minimo (maggior latenza di ~10-20ms).
 
 
+###20.03.2026
+aggiornate funzioni in gestionale "sub.allowedDays" e "sub.daysPerWeek" per permettere la selezione dei giorni della settimana.
