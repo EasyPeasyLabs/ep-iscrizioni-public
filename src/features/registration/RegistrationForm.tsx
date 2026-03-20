@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-// Firebase import reserved for future local backup (currently using server-side API)
+import { db, collection, addDoc, serverTimestamp } from '../../lib/firebase';
 
 // -- TYPES --
 interface IncludedSlot {
@@ -435,11 +435,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         privacyAccepted: privacyAccepted,
         marketingAccepted: false
       };
-      void payloadDati; // reserved for API sync (currently server-side)
-
-      // 2. Save backup to local Firebase FIRST (Project B)
-      let docRef = null;
-      /*
+      // 2. Save directly to local Firebase (Project B)
+      
       const leadData = {
         parentFirstName: formData.nome,
         parentLastName: formData.cognome,
@@ -449,7 +446,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         childAge: formData.childAge,
         selectedLocation: locationName,
         selectedSlot: payloadDati.selectedSlot,
-        notes: `Selected Bundle: ${bundleName}. Lead from Public Landing Page (Full Flow)`,
+        notes: `Selected Bundle: ${bundleName}. Lead from Public Landing Page (Event-Driven Flow)`,
         status: "new",
         privacyConsent: true,
         submittedAt: serverTimestamp(),
@@ -459,36 +456,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       };
 
       if (db) {
-        docRef = await db.collection("raw_registrations").add(leadData);
+        try {
+          await addDoc(collection(db, "raw_registrations"), leadData);
+        } catch (e) {
+          console.error("Local save failed", e);
+          throw new Error("Impossibile salvare i dati localmente. Riprova più tardi.");
+        }
       } else {
-        console.warn("Database locale non inizializzato, backup saltato.");
+        throw new Error("Impossibile connettersi al database locale. Riprova più tardi.");
       }
-      */
 
-      // 3. Send to Gestionale (Project A) via local Vercel API
-      try {
-        const response = await fetch("/api/receive-lead", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payloadDati)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Errore API Gestionale: ${response.status}`);
-        }
-        
-        // 4. Local backup update reserved for when Firebase save is re-enabled
-      } catch (apiErr) {
-        console.error("Errore sincronizzazione API (CORS o Rete):", apiErr);
-        // Se il salvataggio locale è fallito E l'API è fallita, blocchiamo l'utente
-        if (!docRef) {
-          throw new Error("Impossibile salvare i dati. Riprova più tardi.");
-        }
-        // Altrimenti, i dati sono salvi in locale. Logghiamo l'errore ma proseguiamo con successo.
-        console.warn("Dati salvati localmente ma non sincronizzati col Gestionale a causa di un errore di rete/CORS.");
-      }
+      // 3. DONE. The backend Firebase Cloud Function "syncRegistrationToGestionale" 
+      //    (deployed on Project B) will automatically detect this new document 
+      //    and sync it to Gestionale securely in the background.
 
       if (onSuccess) {
         onSuccess();
