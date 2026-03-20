@@ -107,10 +107,10 @@ interface RegistrationFormProps {
 const isAgeCompatible = (age: number, minAge?: number, maxAge?: number): boolean => {
   // If no age limits are defined, assume compatible
   if (minAge === undefined && maxAge === undefined) return true;
-  
+
   const min = minAge !== undefined ? minAge : 0;
   const max = maxAge !== undefined ? maxAge : 99;
-  
+
   return age >= min && age <= max;
 };
 
@@ -131,15 +131,15 @@ const dayMap: { [key: string]: number } = {
 const getNextDateString = (dayName: string): string | null => {
   const targetDay = dayMap[dayName];
   if (targetDay === undefined) return null;
-  
+
   const date = new Date();
   const currentDay = date.getDay();
   let daysUntil = targetDay - currentDay;
-  
+
   if (daysUntil <= 0) {
     daysUntil += 7;
   }
-  
+
   date.setDate(date.getDate() + daysUntil);
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
@@ -159,7 +159,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   });
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  
+
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -171,7 +171,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
   const [pendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-  const [infoModalContent, setInfoModalContent] = useState<{title: string, description: string} | null>(null);
+  const [infoModalContent, setInfoModalContent] = useState<{ title: string, description: string } | null>(null);
 
   const prevCountRef = useRef(0);
 
@@ -204,11 +204,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             "Accept": "application/json"
           }
         });
-        
+
         if (!response.ok) throw new Error(`Failed to fetch slots: ${response.status}`);
-        
+
         const apiResponse: ApiResponse = await response.json();
-        
+
         if (apiResponse.success && Array.isArray(apiResponse.data)) {
           const mappedLocations: Location[] = apiResponse.data.map((loc) => {
             const bundles = loc.bundles || [];
@@ -255,12 +255,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     return availableLocations.map(loc => ({
       ...loc,
       bundles: loc.bundles.map(bundle => {
-        const pendingCount = pendingRegistrations.filter(r => 
+        const pendingCount = pendingRegistrations.filter(r =>
           r.locationId === loc.sedeId && r.selectedSlot.bundleId === bundle.bundleId
         ).length;
-        
+
         const realAvailableSeats = Math.max(0, bundle.originalCapacity - pendingCount);
-        
+
         return {
           ...bundle,
           availableSeats: realAvailableSeats,
@@ -290,7 +290,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     } else {
       frame = currentCard;
     }
-    
+
     if (onProgressUpdate && frame !== prevCountRef.current) {
       onProgressUpdate(frame);
       prevCountRef.current = frame;
@@ -315,19 +315,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    
+
     if (id === 'selectedLocation') {
       setFormData(prev => ({ ...prev, selectedLocation: value, selectedSlot: '' }));
     } else if (id === 'telefono') {
       let val = value.replace(/[^\d+]/g, '');
       const oldVal = formData.telefono;
-      
+
       if (val.length > 0) {
         if (val.startsWith('0039')) {
           val = '+39' + val.substring(4);
         } else if (!val.startsWith('+39')) {
           val = val.replace(/^\+?/, ''); // remove leading +
-          
+
           if (oldVal === '+39' && val.length < 3) {
             val = '';
           } else if (val.startsWith('39') && val.length > 3) {
@@ -337,7 +337,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           }
         }
       }
-      
+
       setFormData(prev => ({ ...prev, [id]: val }));
     } else {
       setFormData(prev => ({ ...prev, [id]: value }));
@@ -354,13 +354,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
     if (!isNomeValid) { newErrors.nome = "Il nome è obbligatorio"; isValid = false; }
     if (!isCognomeValid) { newErrors.cognome = "Il cognome è obbligatorio"; isValid = false; }
-    if (!formData.email.trim()) { newErrors.email = "L'email è obbligatoria"; isValid = false; } 
+    if (!formData.email.trim()) { newErrors.email = "L'email è obbligatoria"; isValid = false; }
     else if (!isEmailValid) { newErrors.email = "Email non valida"; isValid = false; }
-    
+
     if (!formData.telefono.trim()) { newErrors.telefono = "Telefono obbligatorio"; isValid = false; }
     else if (!isPhoneValid) {
-        newErrors.telefono = "Numero non valido";
-        isValid = false;
+      newErrors.telefono = "Numero non valido";
+      isValid = false;
     }
 
     if (!isChildNameValid) { newErrors.childName = "Nome studente obbligatorio"; isValid = false; }
@@ -389,9 +389,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       // 1. Prepare data for Gestionale (Project A)
       const selectedLoc = availableLocations.find(l => l.sedeId === formData.selectedLocation);
       const locationName = selectedLoc ? selectedLoc.nomeSede : '';
-      
+
       const selectedBundle = selectedLoc?.bundles.find(b => b.bundleId === formData.selectedSlot);
-      
+
       let dayOfWeek = 0;
       let startTime = "";
       let endTime = "";
@@ -401,14 +401,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       if (selectedBundle) {
         dayOfWeek = selectedBundle.dayOfWeek;
         bundleName = selectedBundle.name;
-        
+
         // Concatenate times for backward compatibility
         startTime = selectedBundle.includedSlots.map(s => s.startTime).join(" & ");
         endTime = selectedBundle.includedSlots.map(s => s.endTime).join(" & ");
-        
+
         // If there's only one slot, use its type, otherwise use a generic or combined type
-        type = selectedBundle.includedSlots.length === 1 
-          ? selectedBundle.includedSlots[0].type 
+        type = selectedBundle.includedSlots.length === 1
+          ? selectedBundle.includedSlots[0].type
           : selectedBundle.includedSlots.map(s => s.type).join("+");
       }
 
@@ -436,13 +436,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         marketingAccepted: false
       };
       // 2. Save directly to local Firebase (Project B)
-      
+
       const leadData = {
         parentFirstName: formData.nome,
         parentLastName: formData.cognome,
         parentEmail: formData.email,
         parentPhone: formData.telefono,
-        childName: formData.childName, 
+        childName: formData.childName,
         childAge: formData.childAge,
         selectedLocation: locationName,
         selectedSlot: payloadDati.selectedSlot,
@@ -488,7 +488,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           setCurrentCard(0);
         }, 5000);
       }
-      
+
     } catch (err) {
       console.error("Errore durante l'invio:", err);
       setGlobalError("Si è verificato un errore di connessione. Riprova più tardi.");
@@ -499,7 +499,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   // Filter logic for current slots
   const childAgeNum = parseInt(formData.childAge) || 0;
-  
+
   /*
   // -- NEW MOTOR: Physical Occupancy & Minimo Comune Denominatore --
   const calculateAdjustedLocations = (locations: Location[], pending: PendingRegistration[]) => {
@@ -555,7 +555,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   };
   */
 
-  const filteredLocations = locationsWithRealAvailability.filter(loc => 
+  const filteredLocations = locationsWithRealAvailability.filter(loc =>
     loc.bundles.some(b => {
       const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
       // For debug: only check age compatibility, ignore availability
@@ -564,8 +564,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   );
 
   const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
-  
-  const currentBundles = selectedLocationObj 
+
+  const currentBundles = selectedLocationObj
     ? selectedLocationObj.bundles.filter(b => isAgeCompatible(childAgeNum, b.minAge, b.maxAge))
     : [];
 
@@ -665,7 +665,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 </p>
               )}
             </div>
-            
+
             <div className="flex flex-col gap-1 h-full">
               <div className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-0.5">
                 {isLoadingLocations ? (
@@ -691,7 +691,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     const visibleBundles = loc.bundles.filter(b => {
                       const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
                       if (!isBundleCompatible) return false;
-                      return b.includedSlots.some(slot => 
+                      return b.includedSlots.some(slot =>
                         isAgeCompatible(childAgeNum, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge)
                       );
                     });
@@ -706,11 +706,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                               <span className="font-black text-[13px]">{loc.nomeSede}</span>
                             </h3>
                           </div>
-                          
+
                           {loc.indirizzo && (
-                            <a 
+                            <a
                               href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
-                              target="_blank" 
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="flex flex-col items-center justify-center text-[9px] font-black px-4 flex-1 rounded-2xl border transition-colors bg-red-800 text-white border-red-900 lg:bg-slate-50 lg:text-brand-blue lg:border-slate-200 lg:hover:text-brand-red"
                               onClick={(e) => e.stopPropagation()}
@@ -724,7 +724,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                             </a>
                           )}
                         </div>
-                        
+
                         <div className="space-y-2">
                           {visibleBundles.length > 0 ? (
                             visibleBundles.map((bundle) => {
@@ -734,9 +734,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                               const dayName = dayNumberMap[bundle.dayOfWeek] || 'Sconosciuto';
                               const dayShort = dayName.substring(0, 3).toUpperCase();
                               const isFull = bundle.isFull || bundle.availableSeats === 0;
-                              
+
                               return (
-                                <div 
+                                <div
                                   key={bundle.bundleId}
                                   onClick={() => {
                                     if (isChildAgeValid && !isFull) {
@@ -749,7 +749,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                     relative p-2.5 rounded-xl border transition-all duration-200
                                     ${isFull ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' : 'cursor-pointer'}
                                     ${isSelected && !isFull
-                                      ? 'border-brand-blue bg-blue-50 shadow-md ring-1 ring-brand-blue' 
+                                      ? 'border-brand-blue bg-blue-50 shadow-md ring-1 ring-brand-blue'
                                       : !isFull ? 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50' : ''}
                                     ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
                                   `}
@@ -763,7 +763,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         {dayName}
                                       </span>
                                     </div>
-                                    
+
                                     <div className="flex items-center gap-2">
                                       {bundle.description && (
                                         <button
@@ -787,11 +787,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                             if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
                                           }
                                         }}
-                                        className={`px-3 py-1 rounded-lg border-2 text-sm font-bold transition-colors ${
-                                          isSelected 
-                                            ? 'bg-green-600 border-green-600 text-white' 
+                                        className={`px-3 py-1 rounded-lg border-2 text-sm font-bold transition-colors ${isSelected
+                                            ? 'bg-green-600 border-green-600 text-white'
                                             : 'bg-white border-green-600 text-green-600 hover:bg-green-50'
-                                        }`}
+                                          }`}
                                       >
                                         {isSelected ? 'OK' : 'seleziona'}
                                       </button>
@@ -806,7 +805,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                           const sMin = slot.minAge !== undefined ? slot.minAge : min;
                                           const sMax = slot.maxAge !== undefined ? slot.maxAge : max;
                                           const slotAgeText = (sMin === 0 && sMax === 99) ? "Tutte le età" : `${sMin}-${sMax} anni`;
-                                          
+
                                           return (
                                             <div key={idx} className="flex flex-col gap-0.5">
                                               <div className="flex items-center gap-2">
@@ -826,7 +825,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                           );
                                         })}
                                     </div>
-                                    
+
                                     {(() => {
                                       const seats = isFull ? 0 : bundle.availableSeats;
                                       let badgeBg = '';
@@ -854,7 +853,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                         bottomText = seats.toString();
                                       } else {
                                         const occupied = bundle.originalCapacity - bundle.availableSeats;
-                                        
+
                                         if (occupied === 0) {
                                           badgeBg = '#191970';
                                           topText = 'Nuovo corso in partenza!';
@@ -875,7 +874,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                       }
 
                                       return (
-                                        <div 
+                                        <div
                                           className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl min-w-[90px] max-w-[90px] text-center shadow-sm ${badgeTextCol}`}
                                           style={{ backgroundColor: badgeBg }}
                                         >
@@ -928,15 +927,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 <div className="text-xs">
                   <label htmlFor="privacy" className="font-medium text-slate-700 cursor-pointer font-sans">Consenso Privacy <span className="text-brand-red">*</span></label>
                   <p className="text-slate-500 text-[10px] mt-0.5 leading-tight font-sans">
-                    Accetto il trattamento dei miei dati personali secondo la 
-                    <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button> 
+                    Accetto il trattamento dei miei dati personali secondo la
+                    <button type="button" onClick={() => setShowPrivacyModal(true)} className="ml-1 text-brand-blue hover:text-brand-red font-bold underline focus:outline-none transition-colors">Privacy Policy</button>
                     ai fini della gestione dell'evento.
                   </p>
                 </div>
               </div>
               {errors.privacy && <p className="mt-1 text-xs text-brand-red pl-6 font-medium font-sans">{errors.privacy}</p>}
             </div>
-            
+
             {globalError && (
               <div className="p-2 rounded-xl bg-red-50 border border-red-100 animate-pulse">
                 <div className="flex">
@@ -974,9 +973,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   return (
     <>
       <div className="w-full max-w-md mx-auto pb-10 relative flex items-center justify-center">
-        
+
         {/* Left Chevron */}
-        <button 
+        <button
           type="button"
           onClick={handlePrevCard}
           disabled={currentCard === 0}
@@ -1002,7 +1001,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         </div>
 
         {/* Right Chevron */}
-        <button 
+        <button
           type="button"
           onClick={handleNextCard}
           disabled={currentCard === totalCards - 1 || !isCardValid(currentCard)}
@@ -1017,16 +1016,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       {/* Pagination Dots */}
       <div className="flex justify-center gap-2 -mt-6 pb-4">
         {[0, 1, 2, 3, 4].map((index) => (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`}
           />
         ))}
       </div>
 
       {/* Privacy Modal */}
-      <Modal 
-        isOpen={showPrivacyModal} 
+      <Modal
+        isOpen={showPrivacyModal}
         onClose={() => setShowPrivacyModal(false)}
         title="Informativa sulla Privacy"
       >
@@ -1062,9 +1061,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
               <h3 className="text-xl font-extrabold text-brand-blue mb-3">
                 {infoModalContent.title}
               </h3>
-              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+              <div className="text-sm text-slate-600 leading-relaxed mb-6 whitespace-pre-wrap">
                 {infoModalContent.description}
-              </p>
+              </div>
               <div className="flex justify-end">
                 <button
                   type="button"
