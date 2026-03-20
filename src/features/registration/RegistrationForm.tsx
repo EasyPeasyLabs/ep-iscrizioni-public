@@ -210,6 +210,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         const apiResponse: ApiResponse = await response.json();
 
         if (apiResponse.success && Array.isArray(apiResponse.data)) {
+          console.log("DEBUG: API getPublicSlotsV2 response:", apiResponse.data);
           const mappedLocations: Location[] = apiResponse.data.map((loc) => {
             const bundles = loc.bundles || [];
 
@@ -259,7 +260,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
           r.locationId === loc.sedeId && r.selectedSlot.bundleId === bundle.bundleId
         ).length;
 
-        const realAvailableSeats = Math.max(0, bundle.originalCapacity - pendingCount);
+        const realAvailableSeats = Math.max(0, bundle.availableSeats - pendingCount);
 
         return {
           ...bundle,
