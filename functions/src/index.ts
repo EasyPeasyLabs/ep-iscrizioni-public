@@ -1,5 +1,6 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
 function getAdmin() {
@@ -70,6 +71,48 @@ export const syncRegistrationToGestionale = onDocumentCreated(
         syncStatus: "failed",
         syncError: error instanceof Error ? error.message : "Errore sconosciuto durante la sincronizzazione HTTP",
         failedAt: firebaseAdmin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }
+);
+
+export const getPortalTexts = onRequest(
+  { region: "europe-west1" },
+  async (req, res) => {
+    // Abilitiamo CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.status(405).json({ success: false, error: 'Method Not Allowed' });
+      return;
+    }
+
+    try {
+      const firebaseAdmin = getAdmin();
+      const portalTextsRef = firebaseAdmin.firestore().collection('portalTexts');
+      const snapshot = await portalTextsRef.where('isActive', '==', true).orderBy('order').get();
+
+      const portalTexts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      res.json({
+        success: true,
+        data: portalTexts
+      });
+    } catch (error) {
+      console.error('Error fetching portal texts:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal Server Error'
       });
     }
   }

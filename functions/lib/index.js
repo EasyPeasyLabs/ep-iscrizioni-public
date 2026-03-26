@@ -1,10 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncRegistrationToGestionale = void 0;
+exports.getPortalTexts = exports.syncRegistrationToGestionale = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const v2_1 = require("firebase-functions/v2");
+const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-admin.initializeApp();
+function getAdmin() {
+    if (admin.apps.length === 0) {
+        admin.initializeApp();
+    }
+    return admin;
+}
 // Impostiamo la regione globale per tutte le funzioni (deve coincidere con la regione del database Firestore)
 (0, v2_1.setGlobalOptions)({ region: "europe-west1" });
 const GESTIONALE_API_URL = "https://receiveleadv2-7wnvtld3xq-ew.a.run.app";
@@ -36,19 +42,52 @@ exports.syncRegistrationToGestionale = (0, firestore_1.onDocumentCreated)("raw_r
             throw new Error(`Errore API Gestionale (Status ${response.status}): ${errorText}`);
         }
         console.log(`[syncRegistrationToGestionale] Sincronizzazione completata con successo per docId: ${docId}`);
+        const firebaseAdmin = getAdmin();
         // Aggiorniamo il documento locale in raw_registrations con lo stato di successo
         await snap.ref.update({
             syncStatus: "synced",
-            syncedAt: admin.firestore.FieldValue.serverTimestamp()
+            syncedAt: firebaseAdmin.firestore.FieldValue.serverTimestamp()
         });
     }
     catch (error) {
         console.error(`[syncRegistrationToGestionale] Fallimento sincronizzazione per docId: ${docId}`, error);
+        const firebaseAdmin = getAdmin();
         // Aggiorniamo il documento locale in raw_registrations con lo stato di errore
         await snap.ref.update({
             syncStatus: "failed",
             syncError: error instanceof Error ? error.message : "Errore sconosciuto durante la sincronizzazione HTTP",
-            failedAt: admin.firestore.FieldValue.serverTimestamp()
+            failedAt: firebaseAdmin.firestore.FieldValue.serverTimestamp()
+        });
+    }
+});
+exports.getPortalTexts = (0, https_1.onRequest)({ region: "europe-west1" }, async (req, res) => {
+    // Abilitiamo CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'GET') {
+        res.status(405).json({ success: false, error: 'Method Not Allowed' });
+        return;
+    }
+    try {
+        const firebaseAdmin = getAdmin();
+        const portalTextsRef = firebaseAdmin.firestore().collection('portalTexts');
+        const snapshot = await portalTextsRef.where('isActive', '==', true).orderBy('order').get();
+        const portalTexts = snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
+        res.json({
+            success: true,
+            data: portalTexts
+        });
+    }
+    catch (error) {
+        console.error('Error fetching portal texts:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
         });
     }
 });

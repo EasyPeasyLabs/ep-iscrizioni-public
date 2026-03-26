@@ -39,6 +39,16 @@ interface Location {
   bundles: Bundle[];
 }
 
+interface PortalText {
+  id: string;
+  type: 'absence_recovery_warning' | 'payment_method';
+  title: string;
+  content: string;
+  paymentMethod?: string;
+  isActive: boolean;
+  order: number;
+}
+
 // API Response Types
 interface ApiIncludedSlot {
   type: string;
@@ -165,13 +175,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const [currentCard, setCurrentCard] = useState(0);
-  const totalCards = 5;
+  const totalCards = useMemo(() => {
+    let count = 5; // Base steps: name, contact, child, location/slot, confirmation
+    if (portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive)) count++;
+    if (portalTexts.some(t => t.type === 'payment_method' && t.isActive)) count++;
+    return count;
+  }, [portalTexts]);
 
   // Dynamic locations state
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
   const [pendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [infoModalContent, setInfoModalContent] = useState<{ title: string, description: string } | null>(null);
+  const [portalTexts, setPortalTexts] = useState<PortalText[]>([]);
 
   const prevCountRef = useRef(0);
 
@@ -249,6 +265,32 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     };
 
     fetchSlots();
+  }, []);
+
+  // Fetch portal texts
+  useEffect(() => {
+    const fetchPortalTexts = async () => {
+      try {
+        const response = await fetch('/api/getPortalTexts', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const apiResponse = await response.json();
+          if (apiResponse.success && Array.isArray(apiResponse.data)) {
+            setPortalTexts(apiResponse.data);
+          }
+        }
+      } catch (error) {
+        console.warn('Warning fetching portal texts:', error);
+        // Non blocchiamo il form se i testi non si caricano
+      }
+    };
+
+    fetchPortalTexts();
   }, []);
 
   // Real-time availability calculation
@@ -586,13 +628,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const enabledStyle = "bg-slate-50 focus:bg-white focus:ring-brand-blue focus:border-brand-blue";
 
   const isCardValid = (index: number) => {
-    switch (index) {
+    const hasAbsenceTexts = portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive);
+    const hasPaymentTexts = portalTexts.some(t => t.type === 'payment_method' && t.isActive);
+    
+    let baseIndex = index;
+    if (hasAbsenceTexts && index >= 4) baseIndex--;
+    if (hasPaymentTexts && index >= (hasAbsenceTexts ? 5 : 4)) baseIndex--;
+    
+    switch (baseIndex) {
       case 0: return isNomeValid && isCognomeValid;
       case 1: return isEmailValid && isPhoneValid;
       case 2: return isChildNameValid && isChildAgeValid;
       case 3: return isLocationValid && isSlotValid;
       case 4: return privacyAccepted;
-      default: return false;
+      default: return true; // Additional info steps are always valid
     }
   };
 
@@ -620,7 +669,62 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   };
 
   const renderCardContent = (index: number) => {
-    switch (index) {
+    const hasAbsenceTexts = portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive);
+    const hasPaymentTexts = portalTexts.some(t => t.type === 'payment_method' && t.isActive);
+    
+    // Calculate the effective step index, accounting for inserted info steps
+    let effectiveIndex = index;
+    let absenceStepIndex = -1;
+    let paymentStepIndex = -1;
+    
+    if (hasAbsenceTexts) {
+      absenceStepIndex = 4;
+      if (index >= absenceStepIndex) effectiveIndex--;
+    }
+    if (hasPaymentTexts) {
+      paymentStepIndex = hasAbsenceTexts ? 5 : 4;
+      if (index >= paymentStepIndex) effectiveIndex--;
+    }
+    
+    // Handle info steps
+    if (index === absenceStepIndex) {
+      const absenceTexts = portalTexts.filter(t => t.type === 'absence_recovery_warning' && t.isActive);
+      return (
+        <div className="space-y-2">
+          <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Assenze e Recuperi</h3>
+          <div className="max-h-[300px] overflow-y-auto space-y-3">
+            {absenceTexts.map(text => (
+              <div key={text.id} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <h4 className="text-sm font-bold text-amber-800 mb-2">{text.title}</h4>
+                <div className="text-xs text-amber-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: text.content }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    if (index === paymentStepIndex) {
+      const paymentTexts = portalTexts.filter(t => t.type === 'payment_method' && t.isActive);
+      return (
+        <div className="space-y-2">
+          <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider border-b border-slate-100 pb-1 mb-2">Modalità di Pagamento</h3>
+          <div className="max-h-[300px] overflow-y-auto space-y-3">
+            {paymentTexts.map(text => (
+              <div key={text.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="text-sm font-bold text-blue-800 mb-2">
+                  {text.paymentMethod ? `${text.paymentMethod}: ${text.title}` : text.title}
+                </h4>
+                <div className="text-xs text-blue-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: text.content }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    // Handle base steps
+    switch (effectiveIndex) {
       case 0:
         return (
           <div className="space-y-1">
@@ -989,7 +1093,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         {/* Card Container */}
         <div className="w-full overflow-hidden px-1 pb-6">
           <form onKeyDown={handleKeyDown} className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCard * 100}%)` }}>
-            {[0, 1, 2, 3, 4].map((index) => (
+            {Array.from({ length: totalCards }, (_, i) => i).map((index) => (
               <div key={index} className="w-full flex-shrink-0 px-1">
                 <Card className="shadow-2xl border-0 rounded-3xl bg-white/95 backdrop-blur-sm pt-3 border-t-4 border-brand-red min-h-[200px] flex flex-col">
                   <CardContent className="px-4 pb-1 pt-1 flex-1 overflow-y-auto">
@@ -1016,7 +1120,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
       {/* Pagination Dots */}
       <div className="flex justify-center gap-2 -mt-6 pb-4">
-        {[0, 1, 2, 3, 4].map((index) => (
+        {Array.from({ length: totalCards }, (_, i) => i).map((index) => (
           <div
             key={index}
             className={`h-2 rounded-full transition-all duration-300 ${currentCard === index ? 'w-6 bg-brand-blue' : 'w-2 bg-slate-300'}`}
