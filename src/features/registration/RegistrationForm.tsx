@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -7,6 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { db, collection, addDoc, serverTimestamp } from '../../lib/firebase';
 
 // -- TYPES --
+// ... (rest of types)
 interface IncludedSlot {
   type: string;
   startTime: string;
@@ -175,19 +176,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const [currentCard, setCurrentCard] = useState(0);
-  const totalCards = useMemo(() => {
-    let count = 5; // Base steps: name, contact, child, location/slot, confirmation
-    if (portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive)) count++;
-    if (portalTexts.some(t => t.type === 'payment_method' && t.isActive)) count++;
-    return count;
-  }, [portalTexts]);
-
+  
   // Dynamic locations state
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
   const [pendingRegistrations] = useState<PendingRegistration[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [infoModalContent, setInfoModalContent] = useState<{ title: string, description: string } | null>(null);
   const [portalTexts, setPortalTexts] = useState<PortalText[]>([]);
+
+  const totalCards = useMemo(() => {
+    let count = 5; // Base steps: name, contact, child, location/slot, confirmation
+    if (portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive)) count++;
+    if (portalTexts.some(t => t.type === 'payment_method' && t.isActive)) count++;
+    return count;
+  }, [portalTexts]);
 
   const prevCountRef = useRef(0);
 
