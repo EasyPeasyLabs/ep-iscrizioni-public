@@ -933,64 +933,55 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
                                     {(() => {
                                       const seats = isFull ? 0 : bundle.availableSeats;
-                                      let badgeBg = '';
-                                      let badgeTextCol = 'text-white';
-                                      let topText = 'posti disponibili:';
-                                      let bottomText = '';
-                                      let bottomTextSize = 'text-2xl';
+                                      const occupied = bundle.originalCapacity - bundle.availableSeats;
+                                      
+                                      let badgeBg = '#32CD32'; // Verde Standard (Default: ALTRI CASI)
+                                      let badgeTextColor = '#171717';
+                                      let topText = 'POSTI DISPONIBILI:';
+                                      let bottomText = seats.toString();
+                                      let bottomTextSize = 'text-3xl';
 
                                       if (seats === 0) {
-                                        badgeBg = '#C0C0C0';
-                                        bottomText = 'ESAURITI';
-                                        bottomTextSize = 'text-[12px]';
-                                      } else if (seats === 1) {
-                                        badgeBg = '#FF0000';
-                                        bottomText = '1';
-                                      } else if (seats === 2) {
-                                        badgeBg = '#FF8C00';
-                                        bottomText = '2';
-                                      } else if (seats === 3) {
-                                        badgeBg = '#FFFF00';
-                                        badgeTextCol = 'text-slate-900';
-                                        bottomText = '3';
-                                      } else if (seats === 4 || seats === 5) {
-                                        badgeBg = '#32CD32';
+                                        // 1. CASO: ESAURITO
+                                        badgeBg = '#C0C0C0'; // Grigio
+                                        badgeTextColor = '#171717';
+                                        topText = 'POSTI ESAURITI';
+                                        bottomText = '';
+                                      } else if (occupied <= 1) {
+                                        // 5. CASO: NUOVO CORSO (0 o 1 occupati)
+                                        badgeBg = '#017010'; // Verde scuro
+                                        badgeTextColor = '#ffffff';
+                                        topText = 'Nuovo corso in partenza!';
+                                        bottomText = '';
+                                      } else if (seats <= 2) {
+                                        // 2. CASO: URGENZA (1 o 2 posti disponibili)
+                                        badgeBg = '#FFFF00'; // Giallo
+                                        badgeTextColor = '#171717';
+                                        topText = 'POSTI DISPONIBILI:';
                                         bottomText = seats.toString();
+                                        bottomTextSize = 'text-3xl';
                                       } else {
-                                        const occupied = bundle.originalCapacity - bundle.availableSeats;
-
-                                        if (occupied === 0) {
-                                          badgeBg = '#191970';
-                                          topText = 'Nuovo corso in partenza!';
-                                          bottomText = 'Procedi per essere ricontattat*';
-                                          bottomTextSize = 'text-[9px]';
-                                        } else if (occupied === 1 || occupied === 2) {
-                                          badgeBg = '#FFFF00';
-                                          badgeTextCol = 'text-slate-900';
-                                          topText = 'ancora';
-                                          bottomText = `${bundle.availableSeats} posti disponibili`;
-                                          bottomTextSize = 'text-[10px]';
-                                        } else {
-                                          badgeBg = '#32CD32';
-                                          topText = 'ancora';
-                                          bottomText = `${bundle.availableSeats} posti disponibili`;
-                                          bottomTextSize = 'text-[10px]';
-                                        }
+                                        // 3. ALTRI CASI
+                                        badgeBg = '#32CD32'; // Verde Standard
+                                        badgeTextColor = '#171717';
+                                        topText = 'POSTI DISPONIBILI:';
+                                        bottomText = seats.toString();
+                                        bottomTextSize = 'text-3xl';
                                       }
 
                                       return (
                                         <div
-                                          className={`flex flex-col items-center justify-center px-2 py-2 rounded-xl min-w-[90px] max-w-[90px] text-center shadow-sm ${badgeTextCol}`}
-                                          style={{ backgroundColor: badgeBg }}
+                                          className="flex flex-col items-center justify-center px-2 py-2 rounded-xl min-w-[90px] max-w-[90px] text-center shadow-sm"
+                                          style={{ backgroundColor: badgeBg, color: badgeTextColor }}
                                         >
-                                          <div className="flex flex-col items-center mb-1">
-                                            <span className="text-[8px] leading-tight font-bold uppercase text-center">
-                                              {topText}
-                                            </span>
+                                          <div className="text-[10px] font-medium leading-tight opacity-90">
+                                            {topText}
                                           </div>
-                                          <span className={`${bottomTextSize} font-black leading-none text-center`}>
-                                            {bottomText}
-                                          </span>
+                                          {bottomText && (
+                                            <div className={`${bottomTextSize} font-bold leading-none mt-1`}>
+                                              {bottomText}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })()}
