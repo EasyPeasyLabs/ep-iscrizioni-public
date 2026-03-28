@@ -840,36 +840,42 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     });
 
                     return (
-                      <div key={loc.sedeId} className="space-y-4 mb-6">
-                        {/* Location Header - step.png style */}
-                        <div className="flex gap-2 h-20 px-1">
+                      <div key={loc.sedeId} className="space-y-4 mb-8">
+                        {/* Location Header - Corrected for long names and city positioning */}
+                        <div className="flex gap-2 h-20 px-1 items-stretch">
                           {/* Sede Info Box */}
-                          <div className="flex-[3] bg-[#fdf289] border-[3px] border-slate-300 rounded-[1.5rem] flex items-center p-3 gap-3 shadow-sm">
+                          <div className="flex-grow bg-[#fdf289] border-[3px] border-slate-300 rounded-[1.5rem] flex items-center p-3 gap-3 shadow-sm relative min-w-0">
                             <div className="bg-white border-[3px] border-slate-300 rounded-xl p-1.5 flex-shrink-0 shadow-inner">
                               <Home className="w-8 h-8 text-slate-800" strokeWidth={2.5} />
                             </div>
-                            <div className="flex flex-col leading-none overflow-hidden">
-                              <span className="font-black text-slate-800 text-[15px] uppercase truncate tracking-tight">{loc.nomeSede}</span>
-                              <span className="font-bold text-slate-600 text-[13px] uppercase truncate mt-0.5">({city})</span>
+                            <div className="flex flex-col leading-none overflow-hidden pr-10">
+                              <span className="font-black text-slate-800 text-[14px] sm:text-[15px] uppercase break-words tracking-tight">
+                                {loc.nomeSede}
+                              </span>
+                            </div>
+                            <div className="absolute bottom-2 right-4 leading-none">
+                              <span className="font-bold text-slate-600 text-[10px] uppercase italic">
+                                ({city})
+                              </span>
                             </div>
                           </div>
 
-                          {/* Map Button */}
+                          {/* Map Button - Protected from shrinking */}
                           {loc.indirizzo && (
                             <a
                               href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex-1 bg-[#9c1b1c] border-[3px] border-slate-300 rounded-[1.5rem] flex flex-col items-center justify-center text-white transition-all active:scale-95 shadow-md hover:bg-red-900"
+                              className="w-20 flex-shrink-0 bg-[#9c1b1c] border-[3px] border-slate-300 rounded-[1.5rem] flex flex-col items-center justify-center text-white transition-all active:scale-95 shadow-md hover:bg-red-900"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="bg-white rounded-full p-1 mb-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9c1b1c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <div className="bg-white rounded-full p-1 mb-1 shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9c1b1c" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
                                   <circle cx="12" cy="10" r="3"></circle>
                                 </svg>
                               </div>
-                              <span className="text-[9px] font-black uppercase tracking-widest leading-none">MAPPA</span>
+                              <span className="text-[8px] font-black uppercase tracking-widest leading-none">MAPPA</span>
                             </a>
                           )}
                         </div>
@@ -887,15 +893,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                             return (
                               <div
                                 key={bundle.bundleId}
-                                onClick={() => {
-                                  if (isChildAgeValid && !isFull) {
-                                    setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
-                                  }
-                                }}
                                 className={`
                                   relative p-5 rounded-[2.2rem] border-[3px] transition-all duration-300 bg-white shadow-xl
-                                  ${isFull ? 'opacity-60 cursor-not-allowed border-slate-100' : 'cursor-pointer'}
-                                  ${isSelected && !isFull ? 'border-brand-blue ring-4 ring-blue-100 scale-[1.01]' : !isFull ? 'border-slate-100 hover:border-blue-200' : ''}
+                                  ${isFull ? 'opacity-60 cursor-not-allowed border-slate-100' : ''}
+                                  ${isSelected && !isFull ? 'border-brand-blue ring-4 ring-blue-100 scale-[1.01]' : !isFull ? 'border-slate-100' : ''}
                                 `}
                               >
                                 {/* Row 1: Title and Info */}
@@ -917,13 +918,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                   )}
                                 </div>
 
-                                {/* Row 2: Day Badge and Select Button */}
+                                {/* Row 2: Day Badge and Select Button - ONLY SELECTION POINT */}
                                 <div className="flex items-center justify-between mb-5">
                                   <div className="px-5 py-1.5 border-[3px] border-brand-blue rounded-full bg-white shadow-sm">
                                     <span className="text-brand-blue font-black text-[12px] uppercase tracking-wider">{dayName}</span>
                                   </div>
                                   <button
                                     type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isChildAgeValid && !isFull) {
+                                        setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
+                                      }
+                                    }}
                                     className={`px-8 py-1.5 border-[3px] rounded-2xl font-black text-[14px] uppercase transition-all ${isSelected
                                       ? 'bg-green-600 border-green-600 text-white shadow-md'
                                       : 'bg-white border-[#22c55e] text-[#22c55e] hover:bg-green-50'
@@ -1004,6 +1011,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                               </div>
                             );
                           })}
+                        </div>
+                        {/* Thin separation line between locations */}
+                        <div className="pt-6 pb-2 px-10">
+                          <div className="h-[1px] w-full bg-slate-200 shadow-sm" />
                         </div>
                       </div>
                     );
