@@ -193,6 +193,39 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   const prevCountRef = useRef(0);
 
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const resetScrollTimer = () => {
+    setShowScrollIndicator(false);
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    
+    // Check if we are in step 3 (Preferences)
+    const hasAbsenceTexts = portalTexts.some(t => t.type === 'absence_recovery_warning' && t.isActive);
+    const hasPaymentTexts = portalTexts.some(t => t.type === 'payment_method' && t.isActive);
+    let effectiveStep = currentCard;
+    if (hasAbsenceTexts && currentCard >= 4) effectiveStep--;
+    if (hasPaymentTexts && currentCard >= (hasAbsenceTexts ? 5 : 4)) effectiveStep--;
+
+    if (effectiveStep === 3 && !formData.selectedSlot) {
+      scrollTimeoutRef.current = setTimeout(() => {
+        setShowScrollIndicator(true);
+      }, 3000);
+    }
+  };
+
+  useEffect(() => {
+    resetScrollTimer();
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [currentCard, formData.selectedLocation, formData.selectedSlot]);
+
+  const handleScroll = () => {
+    resetScrollTimer();
+  };
+
   // Fetch pending registrations from local Firestore to account for real-time occupancy
   /*
   useEffect(() => {
@@ -773,8 +806,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
               )}
             </div>
 
-            <div className="flex flex-col gap-1 h-full">
-              <div className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-0.5">
+            <div className="flex flex-col gap-1 h-full relative">
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                onTouchStart={resetScrollTimer}
+                className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-0.5 scroll-smooth"
+              >
                 {isLoadingLocations ? (
                   <div className="text-center py-4 text-gray-500 text-xs">Caricamento sedi...</div>
                 ) : filteredLocations.length === 0 ? (
@@ -1000,7 +1038,38 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                   })
                 )}
               </div>
+              
+              {/* Pulsing Scroll Indicator */}
+              {showScrollIndicator && (
+                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-bounce">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-black text-brand-blue uppercase tracking-tighter bg-white/80 px-2 py-0.5 rounded-full mb-1">Scopri altre sedi</span>
+                    <svg 
+                      width="30" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="#2b71b8" 
+                      strokeWidth="4" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      className="drop-shadow-sm"
+                      style={{ animation: 'pulse-v 1.5s infinite ease-in-out' }}
+                    >
+                      <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+
               {(errors.selectedLocation || errors.selectedSlot) && <p className="mt-1 text-xs text-red-600">Seleziona un pacchetto per continuare</p>}
+
+              <style>{`
+                @keyframes pulse-v {
+                  0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+                  50% { transform: translateY(10px) scale(1.1); opacity: 1; }
+                }
+              `}</style>
 
               {firstAvailableDate && (
                 <div className="mt-1 p-1.5 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
