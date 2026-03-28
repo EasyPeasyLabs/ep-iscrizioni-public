@@ -796,9 +796,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         );
       case 3:
         return (
-          <div className="space-y-1">
-            <div className="flex items-baseline justify-start gap-4 border-b border-slate-100 pb-1 mb-1">
-              <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider">Preferenze</h3>
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-start gap-4 border-b border-slate-100 pb-1 mb-2">
+              <h3 className="text-xs font-black text-brand-red uppercase tracking-wider">PREFERENZE</h3>
               {childAgeNum > 0 && (
                 <p className="text-[11px] text-slate-400">
                   Mostra corsi per età: <span className="font-black text-slate-600 text-[14px]">{childAgeNum}</span> <span className="font-bold text-slate-400">anni</span>
@@ -811,15 +811,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
                 onTouchStart={resetScrollTimer}
-                className="flex flex-col gap-2 w-full max-h-[250px] overflow-y-auto pr-0.5 scroll-smooth"
+                className="flex flex-col gap-5 w-full max-h-[420px] overflow-y-auto pr-0.5 scroll-smooth pb-10"
               >
                 {isLoadingLocations ? (
-                  <div className="text-center py-4 text-gray-500 text-xs">Caricamento sedi...</div>
+                  <div className="text-center py-4 text-gray-500 text-xs italic">Caricamento sedi...</div>
                 ) : filteredLocations.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-xs">Nessuna sede disponibile per questa età</div>
+                  <div className="text-center py-4 text-gray-500 text-xs italic">Nessuna sede disponibile per questa età</div>
                 ) : (
                   filteredLocations.map(loc => {
-                    // Extract city from address (last part after comma) or use default
                     let city = loc.citta;
                     if (!city && loc.indirizzo) {
                       const parts = loc.indirizzo.split(',');
@@ -832,7 +831,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                       city = "CITTÀ";
                     }
 
-                    // Filter bundles compatible with child age for display
                     const visibleBundles = loc.bundles.filter(b => {
                       const isBundleCompatible = isAgeCompatible(childAgeNum, b.minAge, b.maxAge);
                       if (!isBundleCompatible) return false;
@@ -842,196 +840,170 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     });
 
                     return (
-                      <div key={loc.sedeId} className="mb-3 p-2 rounded-xl border border-slate-200 bg-slate-200 shadow-sm">
-                        <div className="flex justify-between items-stretch mb-2 gap-2">
-                          <div className="bg-yellow-200 border border-yellow-400 px-3 py-1.5 rounded-xl shadow-sm flex-[3] flex items-center gap-3">
-                            <Home className="w-8 h-8 text-yellow-950 flex-shrink-0" fill="white" strokeWidth={2} />
-                            <h3 className="text-yellow-950 leading-tight flex flex-col">
-                              <span className="uppercase font-black text-[16px] tracking-tight">{city}</span>
-                              <span className="font-black text-[13px]">{loc.nomeSede}</span>
-                            </h3>
+                      <div key={loc.sedeId} className="space-y-4 mb-6">
+                        {/* Location Header - step.png style */}
+                        <div className="flex gap-2 h-20 px-1">
+                          {/* Sede Info Box */}
+                          <div className="flex-[3] bg-[#fdf289] border-[3px] border-slate-300 rounded-[1.5rem] flex items-center p-3 gap-3 shadow-sm">
+                            <div className="bg-white border-[3px] border-slate-300 rounded-xl p-1.5 flex-shrink-0 shadow-inner">
+                              <Home className="w-8 h-8 text-slate-800" strokeWidth={2.5} />
+                            </div>
+                            <div className="flex flex-col leading-none overflow-hidden">
+                              <span className="font-black text-slate-800 text-[15px] uppercase truncate tracking-tight">{loc.nomeSede}</span>
+                              <span className="font-bold text-slate-600 text-[13px] uppercase truncate mt-0.5">({city})</span>
+                            </div>
                           </div>
 
+                          {/* Map Button */}
                           {loc.indirizzo && (
                             <a
                               href={loc.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.indirizzo)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex flex-col items-center justify-center text-[9px] font-black px-4 flex-1 rounded-2xl border transition-colors bg-red-800 text-white border-red-900 lg:bg-slate-50 lg:text-brand-blue lg:border-slate-200 lg:hover:text-brand-red"
+                              className="flex-1 bg-[#9c1b1c] border-[3px] border-slate-300 rounded-[1.5rem] flex flex-col items-center justify-center text-white transition-all active:scale-95 shadow-md hover:bg-red-900"
                               onClick={(e) => e.stopPropagation()}
-                              title={loc.indirizzo}
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mb-0.5">
-                                <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
-                                <circle cx="12" cy="10" r="3"></circle>
-                              </svg>
-                              <span className="tracking-widest">MAPPA</span>
+                              <div className="bg-white rounded-full p-1 mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9c1b1c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M20 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"></path>
+                                  <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-widest leading-none">MAPPA</span>
                             </a>
                           )}
                         </div>
 
-                        <div className="space-y-2">
-                          {visibleBundles.length > 0 ? (
-                            visibleBundles.map((bundle) => {
-                              const isSelected = formData.selectedLocation === loc.sedeId && formData.selectedSlot === bundle.bundleId;
-                              const min = bundle.minAge !== undefined ? bundle.minAge : 0;
-                              const max = bundle.maxAge !== undefined ? bundle.maxAge : 99;
-                              const dayName = dayNumberMap[bundle.dayOfWeek] || 'Sconosciuto';
-                              const dayShort = dayName.substring(0, 3).toUpperCase();
-                              const isFull = bundle.isFull || bundle.availableSeats === 0;
+                        {/* Bundle Cards */}
+                        <div className="space-y-5 px-1">
+                          {visibleBundles.map((bundle) => {
+                            const isSelected = formData.selectedLocation === loc.sedeId && formData.selectedSlot === bundle.bundleId;
+                            const min = bundle.minAge !== undefined ? bundle.minAge : 0;
+                            const max = bundle.maxAge !== undefined ? bundle.maxAge : 99;
+                            const dayName = dayNumberMap[bundle.dayOfWeek] || 'Sconosciuto';
+                            const dayShort = dayName.substring(0, 3).toUpperCase();
+                            const isFull = bundle.isFull || bundle.availableSeats === 0;
 
-                              return (
-                                <div
-                                  key={bundle.bundleId}
-                                  onClick={() => {
-                                    if (isChildAgeValid && !isFull) {
-                                      setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
-                                      if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
-                                      if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
-                                    }
-                                  }}
-                                  className={`
-                                    relative p-2.5 rounded-xl border transition-all duration-200
-                                    ${isFull ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' : 'cursor-pointer'}
-                                    ${isSelected && !isFull
-                                      ? 'border-brand-blue bg-blue-50 shadow-md ring-1 ring-brand-blue'
-                                      : !isFull ? 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50' : ''}
-                                    ${!isChildAgeValid ? 'opacity-50 pointer-events-none' : ''}
-                                  `}
-                                >
-                                  <div className="mb-3 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-extrabold text-brand-blue text-lg tracking-tight leading-none">
-                                        {bundle.publicName}
-                                      </span>
-                                      <span className="text-[10px] text-brand-blue font-bold uppercase px-2 py-0.5 bg-white border border-brand-blue rounded-full shadow-sm whitespace-nowrap">
-                                        {dayName}
-                                      </span>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                      {bundle.description && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setInfoModalContent({ title: bundle.publicName || bundle.name, description: bundle.description || '' });
-                                          }}
-                                          className="w-8 h-8 rounded-full border-[2.5px] border-[#2b71b8] flex items-center justify-center text-[#2b71b8] hover:bg-blue-50 transition-colors bg-white shadow-sm"
-                                        >
-                                          <span className="font-serif italic font-bold text-xl leading-none" style={{ fontFamily: 'Georgia, serif' }}>i</span>
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (isChildAgeValid && !isFull) {
-                                            setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
-                                            if (errors.selectedLocation) setErrors(prev => ({ ...prev, selectedLocation: undefined }));
-                                            if (errors.selectedSlot) setErrors(prev => ({ ...prev, selectedSlot: undefined }));
-                                          }
-                                        }}
-                                        className={`px-3 py-1 rounded-lg border-2 text-sm font-bold transition-colors ${isSelected
-                                            ? 'bg-green-600 border-green-600 text-white'
-                                            : 'bg-white border-green-600 text-green-600 hover:bg-green-50'
-                                          }`}
-                                      >
-                                        {isSelected ? 'OK' : 'seleziona'}
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-stretch gap-2">
-                                    <div className="flex-1 space-y-2 bg-white/60 rounded-lg p-2 border border-slate-100">
-                                      {bundle.includedSlots
-                                        .filter(slot => isAgeCompatible(childAgeNum, slot.minAge ?? min, slot.maxAge ?? max))
-                                        .map((slot, idx) => {
-                                          const sMin = slot.minAge !== undefined ? slot.minAge : min;
-                                          const sMax = slot.maxAge !== undefined ? slot.maxAge : max;
-                                          const slotAgeText = (sMin === 0 && sMax === 99) ? "Tutte le età" : `${sMin}-${sMax} anni`;
-
-                                          return (
-                                            <div key={idx} className="flex flex-col gap-0.5">
-                                              <div className="flex items-center gap-2">
-                                                <span className={`
-                                                  inline-block px-1.5 py-0.5 rounded text-[9px] font-black w-8 text-center
-                                                  ${slot.type === 'SG' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}
-                                                `}>
-                                                  {slot.type}
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{dayShort}</span>
-                                              </div>
-                                              <div className="flex items-center justify-between">
-                                                <span className="font-bold text-slate-800 text-[12px] tracking-tight">{slot.startTime} - {slot.endTime}</span>
-                                                <span className="text-slate-400 text-[10px] font-medium">{slotAgeText}</span>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-
-                                    {(() => {
-                                      const seats = isFull ? 0 : bundle.availableSeats;
-                                      const occupied = bundle.originalCapacity - bundle.availableSeats;
-                                      
-                                      let badgeBg = '#32CD32'; // Verde Standard (Default: ALTRI CASI)
-                                      let badgeTextColor = '#171717';
-                                      let topText = 'POSTI DISPONIBILI:';
-                                      let bottomText = seats.toString();
-                                      let bottomTextSize = 'text-3xl';
-
-                                      if (seats === 0) {
-                                        // 1. CASO: ESAURITO
-                                        badgeBg = '#C0C0C0'; // Grigio
-                                        badgeTextColor = '#171717';
-                                        topText = 'POSTI ESAURITI';
-                                        bottomText = '';
-                                      } else if (occupied <= 1) {
-                                        // 5. CASO: NUOVO CORSO (0 o 1 occupati)
-                                        badgeBg = '#017010'; // Verde scuro
-                                        badgeTextColor = '#ffffff';
-                                        topText = 'Nuovo corso in partenza!';
-                                        bottomText = '';
-                                      } else if (seats <= 2) {
-                                        // 2. CASO: URGENZA (1 o 2 posti disponibili)
-                                        badgeBg = '#FFFF00'; // Giallo
-                                        badgeTextColor = '#171717';
-                                        topText = 'POSTI DISPONIBILI:';
-                                        bottomText = seats.toString();
-                                        bottomTextSize = 'text-3xl';
-                                      } else {
-                                        // 3. ALTRI CASI
-                                        badgeBg = '#32CD32'; // Verde Standard
-                                        badgeTextColor = '#171717';
-                                        topText = 'POSTI DISPONIBILI:';
-                                        bottomText = seats.toString();
-                                        bottomTextSize = 'text-3xl';
-                                      }
-
-                                      return (
-                                        <div
-                                          className="flex flex-col items-center justify-center px-2 py-2 rounded-xl min-w-[90px] max-w-[90px] text-center shadow-sm"
-                                          style={{ backgroundColor: badgeBg, color: badgeTextColor }}
-                                        >
-                                          <div className="text-[10px] font-medium leading-tight opacity-90">
-                                            {topText}
-                                          </div>
-                                          {bottomText && (
-                                            <div className={`${bottomTextSize} font-bold leading-none mt-1`}>
-                                              {bottomText}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
+                            return (
+                              <div
+                                key={bundle.bundleId}
+                                onClick={() => {
+                                  if (isChildAgeValid && !isFull) {
+                                    setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
+                                  }
+                                }}
+                                className={`
+                                  relative p-5 rounded-[2.2rem] border-[3px] transition-all duration-300 bg-white shadow-xl
+                                  ${isFull ? 'opacity-60 cursor-not-allowed border-slate-100' : 'cursor-pointer'}
+                                  ${isSelected && !isFull ? 'border-brand-blue ring-4 ring-blue-100 scale-[1.01]' : !isFull ? 'border-slate-100 hover:border-blue-200' : ''}
+                                `}
+                              >
+                                {/* Row 1: Title and Info */}
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="font-black text-[#1d4f91] text-[22px] tracking-tight leading-none uppercase">
+                                    {bundle.publicName}
+                                  </h4>
+                                  {bundle.description && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setInfoModalContent({ title: bundle.publicName || bundle.name, description: bundle.description || '' });
+                                      }}
+                                      className="w-10 h-10 rounded-full border-[3px] border-brand-blue flex items-center justify-center text-brand-blue bg-white shadow-sm hover:bg-blue-50 transition-colors"
+                                    >
+                                      <span className="font-serif italic font-black text-[22px] leading-none">i</span>
+                                    </button>
+                                  )}
                                 </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-[10px] text-slate-400 italic">Nessun pacchetto disponibile per questa età.</p>
-                          )}
+
+                                {/* Row 2: Day Badge and Select Button */}
+                                <div className="flex items-center justify-between mb-5">
+                                  <div className="px-5 py-1.5 border-[3px] border-brand-blue rounded-full bg-white shadow-sm">
+                                    <span className="text-brand-blue font-black text-[12px] uppercase tracking-wider">{dayName}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`px-8 py-1.5 border-[3px] rounded-2xl font-black text-[14px] uppercase transition-all ${isSelected
+                                      ? 'bg-green-600 border-green-600 text-white shadow-md'
+                                      : 'bg-white border-[#22c55e] text-[#22c55e] hover:bg-green-50'
+                                    }`}
+                                  >
+                                    {isSelected ? 'OK' : 'seleziona'}
+                                  </button>
+                                </div>
+
+                                {/* Row 3: Slot Details and Availability */}
+                                <div className="flex gap-3 items-stretch">
+                                  {/* Details Box */}
+                                  <div className="flex-[3] bg-blue-50/50 rounded-2xl border-[2px] border-slate-100 p-3.5 flex flex-col justify-center gap-2">
+                                    {bundle.includedSlots
+                                      .filter(slot => isAgeCompatible(childAgeNum, slot.minAge ?? min, slot.maxAge ?? max))
+                                      .map((slot, idx) => {
+                                        const sMin = slot.minAge !== undefined ? slot.minAge : min;
+                                        const sMax = slot.maxAge !== undefined ? slot.maxAge : max;
+                                        const slotAgeText = (sMin === 0 && sMax === 99) ? "Tutte le età" : `${sMin}-${sMax} anni`;
+
+                                        return (
+                                          <div key={idx} className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-3">
+                                              <span className="bg-blue-100 text-brand-blue px-2 py-0.5 rounded text-[10px] font-black uppercase shadow-sm">
+                                                {slot.type}
+                                              </span>
+                                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{dayShort}</span>
+                                            </div>
+                                            <div className="flex items-baseline justify-between">
+                                              <span className="font-black text-slate-800 text-[18px] tracking-tight">{slot.startTime} - {slot.endTime}</span>
+                                              <span className="text-slate-400 text-[10px] font-bold italic">{slotAgeText}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+
+                                  {/* Availability Box */}
+                                  {(() => {
+                                    const seats = isFull ? 0 : bundle.availableSeats;
+                                    const occupied = bundle.originalCapacity - bundle.availableSeats;
+                                    
+                                    let badgeBg = '#32CD32'; // Verde Standard
+                                    let badgeTextColor = '#171717';
+                                    let topText = 'POSTI DISPONIBILI:';
+                                    let bottomText = seats.toString();
+
+                                    if (seats === 0) {
+                                      badgeBg = '#C0C0C0';
+                                      topText = 'POSTI ESAURITI';
+                                      bottomText = '';
+                                    } else if (occupied <= 1) {
+                                      badgeBg = '#017010';
+                                      badgeTextColor = '#ffffff';
+                                      topText = 'Nuovo corso in partenza!';
+                                      bottomText = '';
+                                    } else if (seats <= 2) {
+                                      badgeBg = '#FFFF00';
+                                    }
+
+                                    return (
+                                      <div
+                                        className="flex-1 rounded-2xl flex flex-col items-center justify-center p-2 text-center shadow-lg border-b-4 border-black/10 min-w-[100px]"
+                                        style={{ backgroundColor: badgeBg, color: badgeTextColor }}
+                                      >
+                                        <div className="text-[9px] font-black leading-tight uppercase opacity-90 px-1 tracking-tighter">
+                                          {topText}
+                                        </div>
+                                        {bottomText && (
+                                          <div className="text-[36px] font-black leading-none mt-1">
+                                            {bottomText}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -1041,41 +1013,42 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
               
               {/* Pulsing Scroll Indicator */}
               {showScrollIndicator && (
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-bounce">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
                   <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-black text-brand-blue uppercase tracking-tighter bg-white/80 px-2 py-0.5 rounded-full mb-1">Scopri altre sedi</span>
-                    <svg 
-                      width="30" 
-                      height="20" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="#2b71b8" 
-                      strokeWidth="4" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      className="drop-shadow-sm"
-                      style={{ animation: 'pulse-v 1.5s infinite ease-in-out' }}
-                    >
-                      <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
-                    </svg>
+                    <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest bg-white/95 backdrop-blur-sm px-4 py-1.5 rounded-full mb-1 shadow-md border border-slate-100">SCOPRI ALTRE SEDI</span>
+                    <div className="animate-bounce">
+                      <svg 
+                        width="24" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="#2b71b8" 
+                        strokeWidth="4" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                        style={{ animation: 'pulse-v 1.5s infinite ease-in-out' }}
+                      >
+                        <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {(errors.selectedLocation || errors.selectedSlot) && <p className="mt-1 text-xs text-red-600">Seleziona un pacchetto per continuare</p>}
+              {(errors.selectedLocation || errors.selectedSlot) && <p className="mt-2 text-[11px] font-black text-red-600 text-center uppercase animate-pulse">⚠️ Seleziona un pacchetto per continuare</p>}
 
               <style>{`
                 @keyframes pulse-v {
                   0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
-                  50% { transform: translateY(10px) scale(1.1); opacity: 1; }
+                  50% { transform: translateY(8px) scale(1.1); opacity: 1; }
                 }
               `}</style>
 
               {firstAvailableDate && (
-                <div className="mt-1 p-1.5 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
-                  <p className="text-xs text-brand-blue text-center">
-                    <span className="block text-[9px] text-blue-400 tracking-wider font-semibold mb-0 leading-tight">Se decidessi di iscriverti, la tua prima lezione disponibile sarebbe:</span>
-                    <span className="font-bold capitalize">{firstAvailableDate}</span>
+                <div className="mt-3 p-3 bg-blue-50 border-2 border-blue-100 rounded-[1.5rem] shadow-inner animate-in fade-in slide-in-from-top-4">
+                  <p className="text-xs text-brand-blue text-center flex flex-col gap-1">
+                    <span className="text-[9px] text-blue-400 tracking-widest uppercase font-black opacity-80">Prima lezione disponibile:</span>
+                    <span className="text-[14px] font-black capitalize bg-white/50 py-1 px-4 rounded-full inline-block mx-auto">{firstAvailableDate}</span>
                   </p>
                 </div>
               )}
