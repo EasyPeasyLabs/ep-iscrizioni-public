@@ -93,7 +93,7 @@ interface FormErrors {
   email?: string;
   telefono?: string;
   childName?: string;
-  childAge?: string;
+  childDob?: string;
   selectedLocation?: string;
   selectedSlot?: string;
   privacy?: string;
@@ -115,6 +115,21 @@ interface RegistrationFormProps {
 }
 
 // -- HELPERS --
+const computeAge = (dobString?: string): number => {
+  if (!dobString || dobString.length !== 10) return 0;
+  const parts = dobString.split('-');
+  if (parts.length !== 3) return 0;
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return 0;
+  const dob = new Date(year, month - 1, day);
+  const diff = Date.now() - dob.getTime();
+  if (diff < 0) return 0; // future date
+  const ageDate = new Date(diff);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
+};
+
 const isAgeCompatible = (age: number, minAge?: number, maxAge?: number): boolean => {
   // If no age limits are defined, assume compatible
   if (minAge === undefined && maxAge === undefined) return true;
@@ -164,7 +179,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     email: '',
     telefono: '',
     childName: '',
-    childAge: '',
+    childDob: '',
     selectedLocation: '',
     selectedSlot: ''
   });
@@ -246,10 +261,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   // Fetch available slots
   useEffect(() => {
+    // Solo se la data è completamente vuota o completata a 10 caratteri.
+    if (formData.childDob.length > 0 && formData.childDob.length < 10) return;
+
     const fetchSlots = async () => {
       setIsLoadingLocations(true);
       try {
-        const response = await fetch(PUBLIC_SLOTS_URL, {
+        const urlParams = new URLSearchParams();
+        if (formData.childDob && formData.childDob.length === 10) {
+          urlParams.append('dob', formData.childDob);
+        }
+        
+        const targetUrl = urlParams.toString() ? `${PUBLIC_SLOTS_URL}?${urlParams.toString()}` : PUBLIC_SLOTS_URL;
+
+        const response = await fetch(targetUrl, {
           method: "GET",
           headers: {
             "Accept": "application/json"
@@ -300,7 +325,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     };
 
     fetchSlots();
-  }, []);
+  }, [formData.childDob]);
 
   // Fetch portal texts
   useEffect(() => {
@@ -354,7 +379,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
   const isPhoneValid = formData.telefono.trim().length > 5;
   const isChildNameValid = formData.childName.trim().length > 1;
-  const isChildAgeValid = formData.childAge.trim().length > 0;
+  const isChildDobValid = formData.childDob.trim().length === 10;
   const isLocationValid = formData.selectedLocation !== '';
   const isSlotValid = formData.selectedSlot !== '';
 
@@ -417,6 +442,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
       }
 
       setFormData(prev => ({ ...prev, [id]: val }));
+    } else if (id === 'childDob') {
+      let val = value.replace(/[^\d]/g, '');
+      if (val.length > 2) val = val.substring(0, 2) + '-' + val.substring(2);
+      if (val.length > 5) val = val.substring(0, 5) + '-' + val.substring(5);
+      if (val.length > 10) val = val.substring(0, 10);
+      setFormData(prev => ({ ...prev, [id]: val }));
     } else {
       setFormData(prev => ({ ...prev, [id]: value }));
     }
@@ -442,7 +473,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     }
 
     if (!isChildNameValid) { newErrors.childName = "Nome studente obbligatorio"; isValid = false; }
-    if (!isChildAgeValid) { newErrors.childAge = "Età richiesta"; isValid = false; }
+    if (!isChildDobValid) { newErrors.childDob = "Data nascita richiesta (GG-MM-AAAA)"; isValid = false; }
 
     if (!formData.selectedLocation) { newErrors.selectedLocation = "Seleziona una sede"; isValid = false; }
     if (!formData.selectedSlot) { newErrors.selectedSlot = "Seleziona un orario"; isValid = false; }
@@ -497,7 +528,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         telefono: formData.telefono,
         childName: formData.childName,
         childLastName: formData.cognome, // Default to parent's last name
-        childAge: parseInt(formData.childAge) || 0,
+        childDob: formData.childDob,
         locationId: formData.selectedLocation,
         locationName: locationName,
         selectedLocation: locationName,
@@ -521,7 +552,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         parentEmail: formData.email,
         parentPhone: formData.telefono,
         childName: formData.childName,
-        childAge: formData.childAge,
+        childDob: formData.childDob,
         selectedLocation: locationName,
         selectedSlot: payloadDati.selectedSlot,
         notes: `Selected Bundle: ${bundleName}. Lead from Public Landing Page (Event-Driven Flow)`,
@@ -558,7 +589,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             email: '',
             telefono: '',
             childName: '',
-            childAge: '',
+            childDob: '',
             selectedLocation: '',
             selectedSlot: ''
           });
@@ -576,7 +607,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   };
 
   // Filter logic for current slots
-  const childAgeNum = parseInt(formData.childAge) || 0;
+  const childAgeNum = computeAge(formData.childDob);
 
   /*
   // -- NEW MOTOR: Physical Occupancy & Minimo Comune Denominatore --
@@ -673,7 +704,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     switch (baseIndex) {
       case 0: return isNomeValid && isCognomeValid;
       case 1: return isEmailValid && isPhoneValid;
-      case 2: return isChildNameValid && isChildAgeValid;
+      case 2: return isChildNameValid && isChildDobValid;
       case 3: return isLocationValid && isSlotValid;
       case 4: return privacyAccepted;
       default: return true; // Additional info steps are always valid
@@ -787,9 +818,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             <div className="grid grid-cols-1 gap-2">
               <Input id="childName" label="Nome" placeholder="Luca" value={formData.childName} onChange={handleChange} error={errors.childName} required disabled={!isPhoneValid} className={`${inputBaseStyle} ${!isPhoneValid ? disabledStyle : enabledStyle}`} />
               <div>
-                <label htmlFor="childAge" className={`block text-xs font-medium mb-0.5 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>Età <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
-                <input id="childAge" type="number" min="1" max="100" placeholder="es. 8" value={formData.childAge} onChange={handleChange} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childAge ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
-                {errors.childAge && <p className="mt-1 text-xs text-red-600">{errors.childAge}</p>}
+                <label htmlFor="childDob" className={`block text-xs font-medium mb-0.5 ${!isChildNameValid ? 'text-slate-400' : 'text-slate-700'}`}>Data di Nascita <span className={!isChildNameValid ? 'text-slate-300' : 'text-red-500'}>*</span></label>
+                <input id="childDob" type="text" placeholder="GG-MM-AAAA" value={formData.childDob} onChange={handleChange} maxLength={10} disabled={!isChildNameValid} className={`appearance-none block w-full px-3 py-1.5 border rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm ${errors.childDob ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-300'} ${!isChildNameValid ? disabledStyle : enabledStyle} ${inputBaseStyle}`} />
+                {errors.childDob && <p className="mt-1 text-xs text-red-600">{errors.childDob}</p>}
               </div>
             </div>
           </div>
@@ -927,7 +958,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (isChildAgeValid && !isFull) {
+                                      if (isChildDobValid && !isFull) {
                                         setFormData(prev => ({ ...prev, selectedLocation: loc.sedeId, selectedSlot: bundle.bundleId }));
                                       }
                                     }}

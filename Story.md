@@ -186,5 +186,16 @@ L'ecosistema è diviso in due progetti Firebase distinti per sicurezza (Isolatio
 Il sistema continua a funzionare correttamente nonostante l'inconsistenza di regione. L'impatto è minimo (maggior latenza di ~10-20ms).
 
 
-###20.03.2026
+### 20.03.2026
 aggiornate funzioni in gestionale "sub.allowedDays" e "sub.daysPerWeek" per permettere la selezione dei giorni della settimana.
+
+### 22.05.2026
+- **Fix Schermata Bianca:** Il template Vite/React di AI Studio generato inizialmente non era stato sovrascritto correttamente dal comando di import eseguito in precedenza. Il file `App.tsx` risultava vuoto.
+- Ho copiato forzatamente la vera codebase dal repository in working directory, sovrascrivendo e ripristinando il reale entry point (`index.html`, `src/App.tsx`, `package.json`). 
+- Ho risintonizzato `package.json` installando l'ambiente Node, i plugin Vite e Tailwind v3 corretti del repository e riavviato il server di sviluppo. La schermata ora si carica correttamente.
+
+### 2. 22/05/2026
+- Rimosso campo `childAge`.
+- Aggiunto campo `childDob` (maschera DD-MM-YYYY).
+- Aggiornato payload JSON form `childDob`.
+- Modificata API `getPublicSlotsV5` (server) aggiunta query string `?dob=DD-MM-YYYY`. Fallback `age` mantenuto. Server-side router aggiornato `server.ts`.

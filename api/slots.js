@@ -9,7 +9,12 @@ export default async function handler(req, res) {
       console.warn("CRITICAL WARNING: Missing BRIDGE_SECURE_KEY environment variable. API calls will fail.");
       return res.status(500).json({ success: false, error: "Internal Server Error: Configuration missing" });
     }
-    const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV5", {
+    
+    // Forward query parameters
+    const queryParams = new URLSearchParams(req.query).toString();
+    const targetUrl = `https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV5${queryParams ? '?' + queryParams : ''}`;
+
+    const response = await fetch(targetUrl, {
       method: "GET",
       headers: {
         "Accept": "application/json",

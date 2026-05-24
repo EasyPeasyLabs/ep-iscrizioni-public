@@ -10,12 +10,21 @@ async function startServer() {
   app.use(express.json());
   app.use(cors());
 
-  // API Proxy for Slots (Punta alla V2 in produzione)
+  // API Proxy for Slots
   app.get("/api/slots", async (req, res) => {
     try {
       const BRIDGE_SECURE_KEY = process.env.BRIDGE_SECURE_KEY || "EP_V1_BRIDGE_SECURE_KEY_8842_XY";
       
-      const response = await fetch("https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV5?projectId=ep-projectb", {
+      const dob = req.query.dob;
+      const age = req.query.age;
+      let targetUrl = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV5?projectId=ep-projectb";
+      if (dob) {
+        targetUrl += `&dob=${encodeURIComponent(dob as string)}`;
+      } else if (age) {
+        targetUrl += `&age=${encodeURIComponent(age as string)}`;
+      }
+
+      const response = await fetch(targetUrl, {
         method: "GET",
         headers: {
           "Accept": "application/json",
