@@ -15,6 +15,11 @@ interface Slot {
   minAge: number;
   maxAge: number;
   tipo: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime?: string;
+  subscriptionId: string;
+  bundleName: string;
 }
 
 interface Location {
@@ -26,16 +31,28 @@ interface Location {
   slot: Slot[];
 }
 
-// API Response Types
-interface ApiSlot {
+// API Response Types (Aligned with V5)
+interface ApiBundle {
+  bundleId: string;
+  subscriptionId: string;
+  name: string;
+  publicName?: string;
+  description?: string;
+  price: number;
   dayOfWeek: number;
   startTime: string;
-  endTime?: string;
+  endTime: string;
   minAge: number;
   maxAge: number;
   availableSeats: number;
   isFull: boolean;
-  type?: string;
+  includedSlots: {
+    courseId: string;
+    type: string;
+    startTime: string;
+    endTime: string;
+    dayOfWeek: number;
+  }[];
 }
 
 interface ApiLocation {
@@ -44,7 +61,7 @@ interface ApiLocation {
   address?: string;
   city?: string;
   googleMapsLink?: string;
-  slots: ApiSlot[];
+  bundles: ApiBundle[];
 }
 
 interface ApiResponse {
@@ -74,8 +91,9 @@ const isAgeCompatible = (age: number, minAge?: number, maxAge?: number): boolean
   // If no age limits are defined, assume compatible
   if (minAge === undefined && maxAge === undefined) return true;
   
+  // Normalize age comparison (the API V5 filters by months if values > 25)
   const min = minAge !== undefined ? minAge : 0;
-  const max = maxAge !== undefined ? maxAge : 99;
+  const max = maxAge !== undefined ? maxAge : 999;
   
   return age >= min && age <= max;
 };
@@ -87,7 +105,8 @@ const dayNumberMap: { [key: number]: string } = {
   4: 'Giovedì',
   5: 'Venerdì',
   6: 'Sabato',
-  7: 'Domenica'
+  7: 'Domenica',
+  0: 'Domenica'
 };
 
 const dayMap: { [key: string]: number } = {
@@ -110,7 +129,7 @@ const getNextDateString = (dayName: string): string | null => {
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV2";
+const PUBLIC_SLOTS_URL = "https://europe-west1-ep-gestionale-v1.cloudfunctions.net/getPublicSlotsV5";
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUpdate, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -144,7 +163,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     const fetchSlots = async () => {
       setIsLoadingLocations(true);
       try {
-        const response = await fetch(PUBLIC_SLOTS_URL, {
+        let url = PUBLIC_SLOTS_URL;
+        if (formData.childAge) {
+          url += `?age=${formData.childAge}`;
+        }
+
+        const response = await fetch(url, {
           method: "GET",
           headers: {
             "Accept": "application/json",
@@ -163,14 +187,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             indirizzo: loc.address || '',
             citta: loc.city || '',
             googleMapsLink: loc.googleMapsLink,
-            slot: (loc.slots || []).map((s) => ({
-              giorno: dayNumberMap[s.dayOfWeek] || 'Sconosciuto',
-              orario: s.endTime ? `${s.startTime} - ${s.endTime}` : s.startTime,
-              postiRimanenti: typeof s.availableSeats === 'number' ? s.availableSeats : 0,
-              esaurito: s.isFull || s.availableSeats === 0,
-              minAge: typeof s.minAge === 'number' ? s.minAge : 0,
-              maxAge: typeof s.maxAge === 'number' ? s.maxAge : 99,
-              tipo: s.type || 'LAB'
+            slot: (loc.bundles || []).map((b) => ({
+              giorno: dayNumberMap[b.dayOfWeek] || 'Sconosciuto',
+              orario: b.endTime ? `${b.startTime} - ${b.endTime}` : b.startTime,
+              postiRimanenti: typeof b.availableSeats === 'number' ? b.availableSeats : 0,
+              esaurito: b.isFull || b.availableSeats === 0,
+              minAge: typeof b.minAge === 'number' ? b.minAge : 0,
+              maxAge: typeof b.maxAge === 'number' ? b.maxAge : 999,
+              tipo: b.includedSlots?.[0]?.type || 'LAB',
+              dayOfWeek: b.dayOfWeek,
+              startTime: b.startTime,
+              endTime: b.endTime,
+              subscriptionId: b.subscriptionId,
+              bundleName: b.publicName || b.name
             }))
           }));
           setAvailableLocations(mappedLocations);
@@ -186,7 +215,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     };
 
     fetchSlots();
-  }, []);
+  }, [formData.childAge]);
 
   // Validation Logic Helpers
   const isNomeValid = formData.nome.trim().length > 1;
@@ -268,6 +297,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
     setLoading(true);
 
     try {
+      const loc = availableLocations.find(l => l.sedeId === formData.selectedLocation);
+      const slot = loc?.slot.find(s => `${s.giorno} ${s.orario}` === formData.selectedSlot);
+
       const leadData = {
         parentFirstName: formData.nome,
         parentLastName: formData.cognome,
@@ -276,12 +308,22 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
         childName: formData.childName, 
         childAge: formData.childAge,
         selectedLocation: formData.selectedLocation,
-        selectedSlot: formData.selectedSlot,
-        notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (Full Flow)`,
-        status: "new",
+        locationName: loc?.nomeSede || "",
+        // Rich Payload for better E2E consistency
+        selectedSlot: slot ? {
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          type: slot.tipo,
+          subscriptionId: slot.subscriptionId,
+          bundleName: slot.bundleName,
+          label: `${slot.giorno} ${slot.orario}`
+        } : formData.selectedSlot,
+        notes: `Selected Slot: ${formData.selectedSlot}. Lead from Public Landing Page (E2E Alignment)`,
+        status: "pending",
         privacyConsent: true,
         submittedAt: serverTimestamp(),
-        source: "ep_public_web",
+        source: "projectB_api_v2", // Aligned with backend hardcoded expectations
         userAgent: navigator.userAgent
       };
 
@@ -305,15 +347,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
 
   // Filter logic for current slots
   const childAgeNum = parseInt(formData.childAge) || 0;
+  const ageInMonths = childAgeNum > 25 ? childAgeNum : childAgeNum * 12;
   
   const filteredLocations = availableLocations.filter(loc => 
-    loc.slot.some(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+    loc.slot.some(s => isAgeCompatible(ageInMonths, s.minAge, s.maxAge))
   );
 
   const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
   
   const currentSlots = selectedLocationObj 
-    ? selectedLocationObj.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge))
+    ? selectedLocationObj.slot.filter(s => isAgeCompatible(ageInMonths, s.minAge, s.maxAge))
     : [];
 
   // Calculate first available date
@@ -434,7 +477,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     }
 
                     // Filter slots compatible with child age for display
-                    const visibleSlots = loc.slot.filter(s => isAgeCompatible(childAgeNum, s.minAge, s.maxAge));
+                    const visibleSlots = loc.slot.filter(s => isAgeCompatible(ageInMonths, s.minAge, s.maxAge));
 
                     return (
                       <div 
