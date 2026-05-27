@@ -1,24 +1,197 @@
 import React from 'react';
 
-interface MechaLemonProps {
-  className?: string;
-  completionStep?: number;
+interface MechaLemonProps extends React.SVGProps<SVGSVGElement> {
+  completionStep: number; // 0 to totalSteps
+  totalSteps?: number;
 }
 
 export const MechaLemon: React.FC<MechaLemonProps> = ({ 
+  completionStep, 
+  totalSteps = 5, 
   className = '', 
-  completionStep = 0
+  ...props 
 }) => {
-  // Ensure frame is between 0 and 6
-  const frame = Math.max(0, Math.min(6, completionStep));
+  const isFinished = completionStep >= totalSteps; // Step 5
+  const isSuperFinished = completionStep > totalSteps; // Step 6+ (Success)
+
+  // CLOCKWISE ROTATION from Outer Edge Shoulder
+  // Pivot Point: (70, 280) - Left outer edge of body
+  const startAngle = 80;
+  const endAngle = 320; 
+  
+  const progress = Math.min(Math.max(completionStep / totalSteps, 0), 1);
+  const currentRotation = startAngle + (progress * (endAngle - startAngle));
+
+  // Hand rotation adjustments
+  const handRotation = -currentRotation - 20;
+
+  // Hat Animation Logic
+  const hatBaseX = 105;
+  const hatBaseY = 85;
+  const hatBaseRot = -5;
+
+  let hatOffsetX = 0;
+  let hatOffsetY = 0;
+  let hatOffsetRot = 0;
+  
+  let handFollowX = 0;
+  let handFollowY = 0;
+
+  if (isSuperFinished) {
+    hatOffsetX = -100; 
+    hatOffsetY = 15; 
+    hatOffsetRot = -55; 
+    handFollowX = -70; 
+    handFollowY = -25;
+  } else if (isFinished) {
+    hatOffsetX = -20;
+    hatOffsetY = 15; 
+    hatOffsetRot = -25; 
+  }
 
   return (
-    <div className={`relative flex items-center justify-center ${className}`}>
-      <img 
-        src={`/${frame}.png`} 
-        alt={`MechaLemon Mascot Frame ${frame}`} 
-        className="w-full h-full object-contain mix-blend-multiply scale-[1.4] transition-all duration-300"
-      />
-    </div>
+    <svg 
+      viewBox="0 0 420 520" 
+      xmlns="http://www.w3.org/2000/svg" 
+      className={`drop-shadow-2xl transition-all duration-300 overflow-visible ${className}`}
+      {...props}
+    >
+      <defs>
+        <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+          <feOffset dx="0" dy="5" result="offsetblur"/>
+          <feComponentTransfer>
+            <feFuncA type="linear" slope="0.2"/>
+          </feComponentTransfer>
+          <feMerge>
+            <feMergeNode in="offsetblur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+
+        <filter id="blushBlur">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+        </filter>
+
+        <radialGradient id="lemonBodyGrad" cx="40%" cy="35%" r="50%" fx="30%" fy="30%">
+          <stop offset="0%" stopColor="#FFE55C" />
+          <stop offset="80%" stopColor="#F7DA25" />
+          <stop offset="100%" stopColor="#EAC006" />
+        </radialGradient>
+
+        <linearGradient id="hatBlueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#053085" />
+          <stop offset="50%" stopColor="#012169" />
+          <stop offset="100%" stopColor="#001545" />
+        </linearGradient>
+        
+        <linearGradient id="hatBrimGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+           <stop offset="0%" stopColor="#053085" />
+           <stop offset="50%" stopColor="#012169" />
+           <stop offset="100%" stopColor="#001545" />
+        </linearGradient>
+
+        <linearGradient id="limbGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#F7DA25" />
+          <stop offset="100%" stopColor="#EAC006" />
+        </linearGradient>
+      </defs>
+
+      {/* Legs */}
+      <g transform="translate(130, 460)">
+         <path d="M10,0 Q5,25 10,50" stroke="url(#limbGrad)" strokeWidth="14" strokeLinecap="round" fill="none" />
+         <g filter="url(#softShadow)">
+            <path d="M-18,55 C-18,45 40,45 40,65 C40,85 -5,85 -18,85 C-28,85 -28,65 -18,55 Z" fill="#5D9B9B" stroke="#2F6B6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M-15,82 L35,82" stroke="white" strokeWidth="6" opacity="0.4" strokeLinecap="round" />
+         </g>
+      </g>
+
+      <g transform="translate(230, 460)">
+         <path d="M10,0 Q15,25 10,50" stroke="url(#limbGrad)" strokeWidth="14" strokeLinecap="round" fill="none" />
+         <g filter="url(#softShadow)">
+            <path d="M-18,55 C-18,45 40,45 40,65 C40,85 -5,85 -18,85 C-28,85 -28,65 -18,55 Z" fill="#5D9B9B" stroke="#2F6B6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M-15,82 L35,82" stroke="white" strokeWidth="6" opacity="0.4" strokeLinecap="round" />
+         </g>
+      </g>
+
+      {/* Left Arm */}
+      <g transform="translate(290, 280) rotate(-20)">
+        <path d="M0,0 Q30,30 25,60" stroke="url(#limbGrad)" strokeWidth="18" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        <g transform="translate(20, 60) rotate(10)" filter="url(#softShadow)">
+            <path d="M0,-5 C-15,0 -15,35 5,40 C25,45 40,30 35,10 C32,-5 10,-10 0,-5 Z" fill="white" stroke="#E0E0E0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+        </g>
+      </g>
+
+      {/* Body (Lemon) */}
+      <g filter="url(#softShadow)" transform="translate(0, 80)">
+          <path d="M183,65 C100,65 63,150 63,220 C63,310 110,375 183,375 C256,375 303,310 303,220 C303,150 266,65 183,65 Z" fill="url(#lemonBodyGrad)"/>
+          <ellipse cx="130" cy="130" rx="40" ry="25" transform="rotate(-45, 130, 130)" fill="white" opacity="0.4" filter="url(#blushBlur)" />
+          <path d="M163,373 Q183,395 203,373" fill="#EAC006" stroke="#D4B815" strokeWidth="3" strokeLinecap="round"/>
+      </g>
+
+      {/* Face */}
+      <g transform="translate(183, 300)">
+        <g transform="translate(-45, -20)">
+            <ellipse cx="0" cy="0" rx="18" ry="24" fill="#1A1A1A" />
+            <circle cx="6" cy="-8" r="8" fill="white" /> 
+        </g>
+        <g transform="translate(45, -20)">
+            <ellipse cx="0" cy="0" rx="18" ry="24" fill="#1A1A1A" />
+            <circle cx="6" cy="-8" r="8" fill="white" /> 
+        </g>
+        <circle cx="-70" cy="15" r="16" fill="#FF8888" opacity="0.5" filter="url(#blushBlur)" />
+        <circle cx="70" cy="15" r="16" fill="#FF8888" opacity="0.5" filter="url(#blushBlur)" />
+        <path d="M-25,30 Q0,55 25,30" fill="#5A1A1A" stroke="#5A1A1A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+
+      {/* Secret Leaf */}
+      <g 
+        transform={`translate(183, 152) scale(${isSuperFinished ? 1 : 0})`}
+        style={{ transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      > 
+        <path d="M-7,0 L-5,-65 Q0,-72 5,-65 L7,0 Q0,8 -7,0 Z" fill="#33691E" stroke="#1B3810" strokeWidth="1" />
+        <g transform="translate(0, -60) rotate(-45) scale(1.3)">
+             <path d="M0,0 Q45,-55 95,0 Q45,55 0,0 Z" fill="#76FF03" stroke="#33691E" strokeWidth="2" />
+        </g>
+      </g>
+
+      {/* Top Hat */}
+      <g 
+        transform={`translate(${hatBaseX + hatOffsetX}, ${hatBaseY + hatOffsetY}) rotate(${hatBaseRot + hatOffsetRot}, 75, 85)`}
+        style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      >
+         <ellipse cx="75" cy="85" rx="135" ry="35" fill="url(#hatBrimGrad)" />
+         <path d="M-10,85 L-10,-35 Q-10,-50 75,-50 Q160,-50 160,-35 L160,85 Q160,100 75,100 Q-10,100 -10,85" fill="url(#hatBlueGrad)" />
+         <mask id="hatMask">
+            <path d="M-9,85 L-9,-35 Q-9,-49 75,-49 Q159,-49 159,-35 L159,85 Q159,99 75,99 Q-9,99 -9,85" fill="white"/>
+         </mask>
+         <g mask="url(#hatMask)" opacity="0.95">
+            <path d="M-10,-35 Q75,25 160,85" stroke="white" strokeWidth="16" strokeLinecap="round" fill="none"/>
+            <path d="M160,-35 Q75,25 -10,85" stroke="white" strokeWidth="16" strokeLinecap="round" fill="none"/>
+            <path d="M-10,-35 Q75,25 160,85" stroke="#C8102E" strokeWidth="7" strokeLinecap="round" fill="none"/>
+            <path d="M160,-35 Q75,25 -10,85" stroke="#C8102E" strokeWidth="7" strokeLinecap="round" fill="none"/>
+         </g>
+      </g>
+
+      {/* Right Arm (Animated) */}
+      <g 
+        transform={`translate(70, 280) rotate(${currentRotation})`} 
+        style={{ transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      >
+        <path d="M0,0 Q40,10 90,0" stroke="url(#limbGrad)" strokeWidth="18" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        <g 
+            transform={`translate(${90 + handFollowX}, ${0 + handFollowY}) rotate(${handRotation})`} 
+            style={{ transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            filter="url(#softShadow)"
+        >
+             <g transform="scale(-1, 1)">
+                 <path 
+                    d="M-10,0 C-22,0 -22,-25 -15,-30 L-14,-72 Q-5,-82 3,-72 L5,-30 L12,-75 Q20,-77 26,-70 L28,-30 L40,-65 Q48,-68 52,-58 L45,-20 Q50,-10 50,10 Q42,35 10,35 Q-8,35 -10,0" 
+                    fill="white" stroke="#E0E0E0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
+                 />
+             </g>
+        </g>
+      </g>
+    </svg>
   );
 };

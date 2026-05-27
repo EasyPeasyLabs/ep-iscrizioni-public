@@ -37,7 +37,7 @@ function App() {
 
   const handleSuccess = () => {
     setIsSuccess(true);
-    setCompletionCount(6); // Trigger "Grand Finale" animation (frame 6)
+    setCompletionCount(9); // Trigger "Grand Finale" animation (reveal secret)
 
     // Auto-reset after 10 seconds
     setTimeout(() => {
@@ -90,7 +90,11 @@ function App() {
             {/* MechaLemon Mascot - Compact */}
             <div className="flex-none flex items-center justify-center w-full">
               <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 transition-all duration-700 ease-in-out relative z-30">
-                <MechaLemon className="w-full h-full" completionStep={completionCount} />
+                <MechaLemon 
+                  className="w-full h-full" 
+                  completionStep={completionCount} 
+                  totalSteps={8}
+                />
               </div>
             </div>
           </div>
