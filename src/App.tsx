@@ -122,7 +122,7 @@ function App() {
                     <div className="h-full bg-green-500 animate-shrink-width origin-left"></div>
                   </div>
 
-                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full text-green-600 mb-4 mx-auto">
+                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full text-green-600 mx-auto">
                     <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>

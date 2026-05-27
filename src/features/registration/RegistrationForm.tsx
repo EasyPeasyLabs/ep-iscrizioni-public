@@ -18,6 +18,7 @@ interface IncludedSlot {
 interface Bundle {
   bundleId: string;
   subscriptionId?: string;
+  target: 'kid' | 'adult';
   name: string;
   publicName?: string;
   description?: string;
@@ -62,6 +63,7 @@ interface ApiIncludedSlot {
 interface ApiBundle {
   bundleId: string;
   subscriptionId?: string;
+  target: 'kid' | 'adult';
   name: string;
   publicName?: string;
   description?: string;
@@ -137,13 +139,19 @@ const computeAgeInMonths = (dobString?: string): number => {
   return Math.max(0, months);
 };
 
-const isAgeCompatible = (ageInMonths: number, minAge?: number, maxAge?: number): boolean => {
+const isAgeCompatible = (ageInMonths: number, minAge?: number, maxAge?: number, target: 'kid' | 'adult' = 'kid'): boolean => {
   if (minAge === undefined && maxAge === undefined) return true;
 
-  // Normalizzazione: se i limiti sono piccoli (<25), assumi anni e converti in mesi
-  // Heuristic per compatibilità retroattiva e V5 (che invia già mesi)
-  const min = (minAge !== undefined && minAge > 0 && minAge < 25) ? minAge * 12 : (minAge ?? 0);
-  const max = (maxAge !== undefined && maxAge > 0 && maxAge < 25) ? maxAge * 12 : (maxAge ?? 999);
+  // Normalizzazione Target-Aware (Coerente con Backend)
+  // Soglia 9: 1-8 sono anni, >= 9 sono mesi (per i bambini). Adulti sempre anni.
+  const normalize = (v: number) => {
+    if (target === 'adult') return v * 12;
+    if (v > 0 && v < 9) return v * 12;
+    return v;
+  };
+
+  const min = normalize(minAge ?? 0);
+  const max = normalize(maxAge ?? 999);
 
   return ageInMonths >= min && ageInMonths <= max;
 };
@@ -248,6 +256,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
             bundles: (loc.bundles || []).map((b: any) => ({
               bundleId: b.bundleId,
               subscriptionId: b.subscriptionId,
+              target: b.target || 'kid',
               name: b.name,
               publicName: b.publicName || b.name,
               description: b.description,
@@ -440,11 +449,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
   const childAgeYears = Math.floor(childAgeMonths / 12);
 
   const filteredLocations = locationsWithRealAvailability.filter(loc =>
-    loc.bundles.some(b => isAgeCompatible(childAgeMonths, b.minAge, b.maxAge))
+    loc.bundles.some(b => isAgeCompatible(childAgeMonths, b.minAge, b.maxAge, b.target))
   );
 
   const selectedLocationObj = filteredLocations.find(l => l.sedeId === formData.selectedLocation);
-  const currentBundles = selectedLocationObj ? selectedLocationObj.bundles.filter(b => isAgeCompatible(childAgeMonths, b.minAge, b.maxAge)) : [];
+  const currentBundles = selectedLocationObj ? selectedLocationObj.bundles.filter(b => isAgeCompatible(childAgeMonths, b.minAge, b.maxAge, b.target)) : [];
 
   let firstAvailableDate: string | null = null;
   if (formData.selectedSlot) {
@@ -590,8 +599,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                     } else if (!city) city = "CITTÀ";
 
                     const visibleBundles = loc.bundles.filter(b => {
-                      if (!isAgeCompatible(childAgeMonths, b.minAge, b.maxAge)) return false;
-                      return b.includedSlots.some(slot => isAgeCompatible(childAgeMonths, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge));
+                      if (!isAgeCompatible(childAgeMonths, b.minAge, b.maxAge, b.target)) return false;
+                      return b.includedSlots.some(slot => isAgeCompatible(childAgeMonths, slot.minAge ?? b.minAge, slot.maxAge ?? b.maxAge, b.target));
                     });
 
                     return (
@@ -635,11 +644,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onProgressUp
                                 </div>
                                 <div className="flex gap-3 items-stretch">
                                   <div className="flex-[3] bg-blue-50/50 rounded-2xl border-[2px] border-slate-100 p-3.5 flex flex-col justify-center gap-2">
-                                    {bundle.includedSlots.filter(slot => isAgeCompatible(childAgeMonths, slot.minAge ?? min, slot.maxAge ?? max)).map((slot, idx) => {
+                                    {bundle.includedSlots.filter(slot => isAgeCompatible(childAgeMonths, slot.minAge ?? min, slot.maxAge ?? max, bundle.target)).map((slot, idx) => {
                                       const sMin = slot.minAge ?? min; const sMax = slot.maxAge ?? max;
-                                      const dMin = sMin >= 25 ? Math.floor(sMin / 12) : sMin;
-                                      const dMax = sMax >= 25 ? Math.floor(sMax / 12) : sMax;
-                                      const slotAgeText = (sMin === 0 && sMax >= 900) ? "Tutte le età" : `${dMin}-${dMax} anni`;
+                                      
+                                      // Formattazione etichetta intelligente
+                                      const formatAgeLabel = (m: number) => {
+                                        if (m < 24) return `${m} mesi`;
+                                        return `${Math.floor(m / 12)} anni`;
+                                      };
+
+                                      const slotAgeText = (sMin === 0 && sMax >= 900) ? "Tutte le età" : `${formatAgeLabel(sMin)}-${formatAgeLabel(sMax)}`;
+                                      
                                       return (
                                         <div key={idx} className="flex flex-col gap-1.5">
                                           <div className="flex items-center gap-3">
